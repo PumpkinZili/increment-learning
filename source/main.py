@@ -15,17 +15,15 @@ def main():
     model = EmbeddingNet(network = args.model_name, pretrained=args.is_pretrained, embedding_len=args.embeding_size)
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
+
     dataset = SpecificDataset(args, data_augmentation=False)
-    n_classes = dataset.n_classes
-    classes = dataset.classes
-    channels = dataset.channels
-    width, height = dataset.width, dataset.height
-    gap = dataset.gap
-    train_dataset = SampledDataset(dataset.train_dataset, channels, args.amount)
+
+    train_dataset = SampledDataset(dataset.train_dataset, dataset.channels, args.amount)
     print('Train data has {}'.format(len(train_dataset)))
 
     test_dataset = dataset.test_dataset
     print('Validation data has {}'.format(len(test_dataset)))
+
     kwargs = {'num_workers': 8, 'pin_memory': False}
     batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
     sampler_train_loader = torch.utils.data.DataLoader(train_dataset,

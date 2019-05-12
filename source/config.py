@@ -90,7 +90,8 @@ def adjustedArgs(args):
 def getArgs():
     args = arg()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.CVDs
-    return adjustedArgs(args)
+    args = adjustedArgs(args)
+    return args
 
 
 
