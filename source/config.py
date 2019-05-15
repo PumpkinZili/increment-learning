@@ -69,7 +69,7 @@ def adjustedArgs(args):
         args.train_set  = '/share/zili/code/triplet/data/cifar100/train2'
         args.test_set   = '/share/zili/code/triplet/data/cifar100/test2'
         args.train_set_csv = '/share/zili/code/triplet/data/cifar100/train.csv'
-        args.check_path = '/share/zili/code/triplet/checkpoints'
+        args.check_path = '/share/zili/code/checkpoints'
     if args.server == 16:
         args.train_set = '/data0/zili/code/triplet/data/cifar100/train2'
         args.test_set = '/data0/zili/code/triplet/data/cifar100/test2'
@@ -81,10 +81,10 @@ def adjustedArgs(args):
         args.train_set_csv = '/data/jiaxin/zili/data/cifar100/train.csv'
         args.check_path = '/data/jiaxin/zili/checkpoints'
     if args.server == 15:
-        args.train_set = '/home/zili/code/triplet/data/cifar100/train2'
-        args.test_set = '/home/zili/code/triplet/data/cifar100/test2'
-        args.train_set_csv = '/home/zili/code/triplet/data/cifar100/train.csv'
-        args.check_path = '/home/zili/code/triplet/checkpoints'
+        args.train_set = '/home/zili/code/data/cifar100/train'
+        args.test_set = '/home/zili/code/data/cifar100/test'
+        args.train_set_csv = '/home/zili/code/data/cifar100/train.csv'
+        args.check_path = '/home/zili/code/checkpoints'
     return args
 
 

@@ -4,10 +4,11 @@ from utils import makedir, TripletLoss, generate_all_triplet,generate_batch_hard
 from model import EmbeddingNet
 import torch
 from torch.optim import lr_scheduler
-from dataset import SpecificDataset, SampledDataset, BatchSampler
+from dataset import SpecificDataset, SampledDataset, BatchSampler, LimitedBatchSampler
 import torch.nn as nn
 from torch.backends import cudnn
 from trainer import Trainer
+import sys
 import os
 def main():
     args = getArgs()
@@ -29,6 +30,7 @@ def main():
 
     kwargs = {'num_workers': 8, 'pin_memory': False}
     batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
+    # batch_sampler = LimitedBatchSampler(train_dataset, 10, args.batch_n_num, args.batch_n_classes)
     sampler_train_loader = torch.utils.data.DataLoader(train_dataset,
                                                        batch_sampler=batch_sampler, **kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset,

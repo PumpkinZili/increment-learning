@@ -49,7 +49,7 @@ class TripletLoss(nn.Module):
             triplet_term = (triplet_loss / non_zero).sum()
 
         sparse_term = (l1_norm(anchors) + l1_norm(positives) + l1_norm(negatives)) / 3
-        pairwise_term = (ap_distances + (-an_distances) + (-np_distances)).mean()
+        pairwise_term = F.relu((ap_distances + (-an_distances) + (-np_distances)).mean())
 
         return triplet_term, sparse_term, pairwise_term, len(anchors)
 
@@ -62,7 +62,7 @@ def gettriplet(method,embedings,targets):
     elif method == 'batchrandom':
         anchors, positives, negatives = generate_random_triplets(embedings, targets)
     else:
-        print(args.method)
+        print(method)
         raise NotImplementedError
     return anchors, positives, negatives
 

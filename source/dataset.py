@@ -250,26 +250,74 @@ class BatchSampler(Sampler):
         self.repeat = math.ceil(self.len / self.batch_size)
 
     def __iter__(self):
-        # for _ in range(self.repeat):
-        curr_p = 0
-        np.random.shuffle(self.targets_uniq)
-        for k, v in self.target_img_dict.items():
-            np.random.shuffle(self.target_img_dict[k])
+        for _ in range(self.repeat):
+            curr_p = 0
+            np.random.shuffle(self.targets_uniq)
+            for k, v in self.target_img_dict.items():
+                np.random.shuffle(self.target_img_dict[k])
 
-        for i in range(self.iter_num):
-            target_batch = self.targets_uniq[curr_p: curr_p + self.n_classes]
-            curr_p += self.n_classes
-            idx = []
-            for target in target_batch:
-                if len(self.target_img_dict[target]) > self.n_num:
-                    idx_smp = np.random.choice(self.target_img_dict[target], self.n_num, replace=False)
-                else:
-                    idx_smp = np.random.choice(self.target_img_dict[target], self.n_num, replace=True)
-                idx.extend(idx_smp.tolist())
-            yield idx
+            for i in range(self.iter_num):
+                target_batch = self.targets_uniq[curr_p: curr_p + self.n_classes]
+                curr_p += self.n_classes
+                idx = []
+                for target in target_batch:
+                    if len(self.target_img_dict[target]) > self.n_num:
+                        idx_smp = np.random.choice(self.target_img_dict[target], self.n_num, replace=False)
+                    else:
+                        idx_smp = np.random.choice(self.target_img_dict[target], self.n_num, replace=True)
+                    idx.extend(idx_smp.tolist())
+                yield idx
 
     def __len__(self):
-        return self.iter_num
+        return self.iter_num * self.repeat
+
+
+class LimitedBatchSampler(BatchSampler):
+    def __init__(self, dataset, n_classes, n_samples, n_limited):
+        '''
+        Args:
+        dataset: Dataset
+        n_classes: The number of classes totally
+        n_samples: The number of samples per class
+        n_limited: The number of classes per batch
+        '''
+        self.dataset = dataset
+        self.n_classes = n_classes
+        self.n_samples = n_samples
+        self.n_limited = n_limited
+
+        self.batch_size = self.n_samples * self.n_limited
+        self.labels = np.array(dataset.labels)
+        self.labels_set = list(set(self.labels))
+        self.label_to_idx = {label: np.where(self.labels == label)[0]
+                             for label in self.labels_set}
+
+        self.iter_times = len(self.labels_set) // self.n_limited
+        self.repeat = math.ceil(len(self.dataset) / (self.n_classes*self.n_samples))
+        # self.repeat = math.ceil(50 / self.iter_times)  # For time saving
+
+    def __iter__(self):
+        np.random.shuffle(self.labels_set)
+        for k, v in self.label_to_idx.items():
+            np.random.shuffle(self.label_to_idx[k])
+
+        for r in range(self.repeat):
+            curr = 0
+            for i in range(self.iter_times):
+                target_classes = self.labels_set[curr: curr+self.n_limited]
+                curr += self.n_limited
+                indices = []
+                for target in target_classes:
+                    if len(self.label_to_idx[target]) > self.n_samples:
+                        idx = np.random.choice(self.label_to_idx[target], self.n_samples, replace=False)
+                    else:
+                        idx = np.random.choice(self.label_to_idx[target], self.n_samples, replace=True)
+                    indices.extend(idx.tolist())
+
+                yield indices
+
+    def __len__(self):
+        return (self.iter_times * self.repeat)
 
 
 def pil_loader(path):
