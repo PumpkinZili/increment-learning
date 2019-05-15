@@ -6,8 +6,10 @@ import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
-
-
+from os import mkdir
+import itertools
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 
 def l1_norm(vectors):
     return torch.sum(torch.abs(vectors)) / vectors.size(0)
@@ -52,6 +54,7 @@ class TripletLoss(nn.Module):
         return triplet_term, sparse_term, pairwise_term, len(anchors)
 
 def gettriplet(method,embedings,targets):
+
     if method == 'batchhard':
         anchors, positives, negatives = generate_batch_hard_triplet(embedings, targets)
     elif method == 'batchall':
@@ -59,7 +62,7 @@ def gettriplet(method,embedings,targets):
     elif method == 'batchrandom':
         anchors, positives, negatives = generate_random_triplets(embedings, targets)
     else:
-        print(method)
+        print(args.method)
         raise NotImplementedError
     return anchors, positives, negatives
 
@@ -277,15 +280,43 @@ class AverageMeter(object):
 def makedir(args):
     now_time = str(datetime.datetime.now())
     if not os.path.exists(args.check_path):
-        os.mkdir(args.check_path)
+        mkdir(args.check_path)
     args.check_path = os.path.join(args.check_path, now_time)
     if not os.path.exists(args.check_path):
-        os.mkdir(args.check_path)
-    shutil.copy('config.py', args.check_path)
+        mkdir(args.check_path)
+    save_path = init_path(args)
+    shutil.copy('config.py', save_path['path_source'])
+    shutil.copy('trainer.py', save_path['path_source'])
+    shutil.copy('dataset.py', save_path['path_source'])
+    shutil.copy('main.py', save_path['path_source'])
+    shutil.copy('model.py', save_path['path_source'])
+    shutil.copy('utils.py', save_path['path_source'])
 
     output1 = 'main_' + now_time
     f = open(args.check_path + os.path.sep + output1 + '.txt', 'w+')
-    return now_time,f
+    return now_time, f, save_path
+
+def init_path(args):
+    path_cm = os.path.join(args.check_path, 'confusion_matrix')
+    path_tsne = os.path.join(args.check_path, 'tsne')
+    path_tbx = os.path.join(args.check_path, 'tensorboardX')
+    path_log = os.path.join(args.check_path, 'log')
+    path_pkl = os.path.join(args.check_path, 'pkl')
+    path_sparsity = os.path.join(args.check_path, 'sparsity')
+    path_state_tsne = os.path.join(args.check_path, 'state_tsne')
+    path_source = os.path.join(args.check_path, 'source')
+    mkdir(path_cm)
+    mkdir(path_tsne)
+    mkdir(path_tbx)
+    mkdir(path_log)
+    mkdir(path_pkl)
+    mkdir(path_sparsity)
+    mkdir(path_state_tsne)
+    mkdir(path_source)
+    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_tbx':path_tbx, 'path_log':path_log,
+                 'path_pkl':path_pkl, 'path_sparsity':path_sparsity, 'path_state_tsne':path_state_tsne, 'path_source':path_source}
+    return save_path
+
 
 def printConfig(args,f, optimizer):
     print("train dataset:{}".format(args.train_set))
@@ -312,3 +343,57 @@ def printConfig(args,f, optimizer):
     f.write("test_batch_size: {}".format(args.test_batch_size) + '\r\n')
     f.write("is_pretrained: {}".format(args.is_pretrained) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
+
+
+
+def plot_sparsity_histogram(features, idx_to_name, save_dir):
+    '''
+    Args:
+    features(numpy) : [len(known_classes), feature_dimensions]
+    save_path(str)  : Path to save histogram
+    '''
+    for idx, ft in enumerate(features):
+        plt.bar(range(len(ft)), ft)
+        plt.savefig(os.path.join(save_dir, '{}.png'.format(idx_to_name[idx])))
+        plt.close()
+
+
+def plot_confusion_matrix(cm,
+                          classes,
+                          save_path,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        # print("Normalized confusion matrix")
+    else:
+        pass
+        # print('Confusion matrix, without normalization')
+
+    # print(cm)
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    if len(classes) <= 20:
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            plt.text(j, i, format(cm[i, j], fmt),
+                     horizontalalignment="center",
+                     color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()

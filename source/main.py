@@ -7,17 +7,20 @@ from torch.optim import lr_scheduler
 from dataset import SpecificDataset, SampledDataset, BatchSampler
 import torch.nn as nn
 from torch.backends import cudnn
-
+from trainer import Trainer
+import os
 def main():
     args = getArgs()
-    now_time, f = makedir(args)
-    writer = SummaryWriter(log_dir='../runs/' + now_time)
-    model = EmbeddingNet(network = args.model_name, pretrained=args.is_pretrained, embedding_len=args.embeding_size)
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.CVDs
+    now_time, f, save_path = makedir(args)
+    writer = SummaryWriter()
+
+    model = EmbeddingNet(network = args.model_name, pretrained=args.is_pretrained, embedding_len=args.embedding_size)
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
 
     dataset = SpecificDataset(args, data_augmentation=False)
-
+    classes = dataset.classes
     train_dataset = SampledDataset(dataset.train_dataset, dataset.channels, args.amount)
     print('Train data has {}'.format(len(train_dataset)))
 
@@ -36,8 +39,12 @@ def main():
     if torch.cuda.is_available():
         model = torch.nn.DataParallel(model).cuda()
         cudnn.benchmark = True
-
+    # print(args.method)
     criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
+    trainer = Trainer(args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model, criterion, writer, f, save_path, classes)
+    trainer.run()
+    f.close()
+    writer.close()
 
 
 if __name__ == '__main__':

@@ -3,9 +3,9 @@ import os
 def arg():
     parser = argparse.ArgumentParser(
         description='Classifiar using triplet loss.')
-    parser.add_argument('--CVDs', type=str, default='0', metavar='CUDA_VISIBLE_DEVICES',
+    parser.add_argument('--CVDs', type=str, default='7', metavar='CUDA_VISIBLE_DEVICES',
                         help='CUDA_VISIBLE_DEVICES')
-    parser.add_argument('--server', type=int, default=82, metavar='T',
+    parser.add_argument('--server', type=int, default=16, metavar='T',
                         help='which server is being used')
     parser.add_argument('--train-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/train2',
                         metavar='dir',
@@ -16,7 +16,7 @@ def arg():
     parser.add_argument('--train-set-csv', type=str,
                         default='/home/zili/memory/FaceRecognition-master/data/cifar100/train.csv', metavar='file',
                         help='path of train set.csv.')
-    parser.add_argument('--num-triplet', type=int, default=1000, metavar='number',
+    parser.add_argument('--num-triplet', type=int, default=10000, metavar='number',
                         help='number of triplet in dataset (default: 32)')
     parser.add_argument('--amount', default=0, type=int,
                         help='amount of each class for train data')
@@ -44,6 +44,8 @@ def arg():
                         help='Scheduler step size for SGD')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
+    parser.add_argument('--vote', type=int, default=5, metavar='S',
+                        help='vote for knn (default: 5)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='number',
@@ -53,9 +55,8 @@ def arg():
     parser.add_argument('--dropout-p', type=float, default=0.2, metavar='D',
                         help='Dropout probability (default: 0.2)')
     parser.add_argument('--check-path', type=str, default='/home/zili/memory/FaceRecognition-master/checkpoints',
-                        metavar='folder',
-                        help='Checkpoint path')
-    parser.add_argument('--method', type=bool, default='batchhard', metavar='R',
+                        metavar='folder', help='Checkpoint path')
+    parser.add_argument('--method', type=str, default='batchhard', metavar='R',
                         help='method of sample, batchhard, batchall, batchrandom')
     parser.add_argument('--is-pretrained', type=bool, default=False, metavar='R',
                         help='whether model is pretrained.')
@@ -73,7 +74,7 @@ def adjustedArgs(args):
         args.train_set = '/data0/zili/code/triplet/data/cifar100/train2'
         args.test_set = '/data0/zili/code/triplet/data/cifar100/test2'
         args.train_set_csv = '/data0/zili/code/triplet/data/cifar100/train.csv'
-        args.check_path = '/data0/zili/code/triplet/checkpoints'
+        args.check_path = '/data0/zili/code/checkpoints'
     if args.server == 17:
         args.train_set = '/data/jiaxin/zili/data/cifar100/train2'
         args.test_set = '/data/jiaxin/zili/data/cifar100/test'
@@ -89,7 +90,7 @@ def adjustedArgs(args):
 
 def getArgs():
     args = arg()
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.CVDs
+
     args = adjustedArgs(args)
     return args
 
