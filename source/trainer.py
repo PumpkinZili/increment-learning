@@ -151,8 +151,7 @@ class Trainer():
         losses = AverageMeter()
         model.train()
         for step, (images, labels) in enumerate(loader):
-            print(labels)
-            sys.exit(1)
+
             if torch.cuda.is_available() is True:
                 images, labels = images.cuda(), labels.cuda()
             # Extract features

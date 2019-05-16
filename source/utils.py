@@ -2,6 +2,7 @@ import datetime
 import os
 import shutil
 import random
+import sys
 import numpy as np
 import torch
 from torch import nn
@@ -188,15 +189,19 @@ def generate_batch_hard_triplet(embeddeds, targets):
     batch_len = embeddeds.size(0)
 
     dis_mat = pairwise_distances(embeddeds).cpu().data.numpy()
+    # print(dis_mat.shape)
     anchor, positive, negative = [], [], []
 
     ts = targets.reshape(-1).cpu().data.numpy()
-
+    # print(ts)
+    # sys.exit(1)
     for i in range(batch_len):
         incls_id = np.nonzero(ts == ts[i])[0]  # numpy
+
         incls = dis_mat[i][incls_id]
 
-        outcls_id = np.nonzero(ts != ts[i])[0]  # nunpy
+        outcls_id = np.nonzero(ts != ts[i])[0]  # numpy
+
         outcls = dis_mat[i][outcls_id]
 
         if incls_id.size <= 1 or outcls_id.size < 1:
