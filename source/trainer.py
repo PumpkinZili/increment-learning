@@ -6,6 +6,7 @@ import datetime
 from sklearn.metrics import confusion_matrix
 import os
 import sys
+from sklearn import neighbors
 class Trainer():
     def __init__(self, args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model, criterion, writer, file_writer, save_path, classes):
         self.args                 = args
@@ -35,28 +36,36 @@ class Trainer():
             train_loss = self.train(epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
-            # Validate
-            validate_start = datetime.datetime.now()
-
-            with torch.no_grad():
-                benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
-            embeddings, targets = benchmark  # from training set [n, feature_dimension]
-            fts_means = self.extract_feature_mean(embeddings, targets)  # [known, feature_dimension]
 
             if epoch % 4 == 0:
+
+                # Validate
+                validate_start = datetime.datetime.now()
+
+                with torch.no_grad():
+                    benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
+                embeddings, targets = benchmark  # from training set [n, feature_dimension]
+                fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [known, feature_dimension]
+                clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
+                clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
+
                 # Train accuracy
                 train_accy, train_fts, train_lbls = self.validate(epoch=epoch,
                                                                   model=self.model,
                                                                   loader=self.train_loader,
                                                                   benchmark=benchmark,
-                                                                  fts_means=fts_means)
+                                                                  fts_means=fts_means,
+                                                                  clf_knn=clf_knn,
+                                                                  clf_ncm=clf_ncm)
 
                 # Test accuracy
                 valid_accy, pred_fts, pred_lbls = self.validate(epoch=epoch,
                                                                 model=self.model,
                                                                 loader=self.test_loader,
                                                                 benchmark=benchmark,
-                                                                fts_means=fts_means)
+                                                                fts_means=fts_means,
+                                                                clf_knn=clf_knn,
+                                                                clf_ncm=clf_ncm)
 
                 info = 'Epoch: {}, Train_loss: {:.4f}, Train_accy(KNN, NCM): {:.4f}, {:.4f}, \
                 Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
@@ -142,13 +151,14 @@ class Trainer():
         losses = AverageMeter()
         model.train()
         for step, (images, labels) in enumerate(loader):
-
+            print(labels)
+            sys.exit(1)
             if torch.cuda.is_available() is True:
                 images, labels = images.cuda(), labels.cuda()
             # Extract features
             embeddings = model(images)
             # Loss
-            triplet_term, sparse_term, pairwise_term, n_triplets = criterion(embeddings, labels, model)
+            triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
             loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
             losses.update(loss.item())
             optimizer.zero_grad()
@@ -156,6 +166,8 @@ class Trainer():
             optimizer.step()
 
             # Print process
+            if step % 5 == 0:
+                print(ap, an)
             if (step) % 25 == 0:
                 info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
                     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
@@ -164,7 +176,7 @@ class Trainer():
 
         return losses.avg
 
-    def validate(self, epoch, model, benchmark, loader, fts_means):
+    def validate(self, epoch, model, benchmark, loader, fts_means, clf_knn, clf_ncm):
         '''
                 Validate the result of model in loader via KNN and NCM
         '''
@@ -185,21 +197,19 @@ class Trainer():
 
             for ft, lbl in zip(fts, labels):
                 # KNN
-                predict = self.knn(ft=ft,
-                                   embeddings=embeddings,
-                                   targets=targets,
-                                   k_vote=self.args.vote)
+                # predict = self.knn(ft=ft, embeddings=embeddings, targets=targets, k_vote=self.args.vote)
+                predict = clf_knn.predict(ft.cpu().data.numpy().reshape(1,-1))
                 pred_fts.append(ft.cpu())
                 pred_lbls.append(predict)
-                if predict == lbl:
+                if predict == lbl.data.numpy():
                     accuracies_knn.update(1)
                 else:
                     accuracies_knn.update(0)
 
                 # NCM
-                predict = self.ncm(ft=ft,
-                                   means=fts_means)
-                if predict == lbl:
+                # predict = self.ncm(ft=ft, means=fts_means)
+                predict = clf_ncm.predict(ft.cpu().data.numpy().reshape(1,-1))
+                if predict == lbl.data.numpy():
                     accuracies_ncm.update(1)
                 else:
                     accuracies_ncm.update(0)
@@ -233,12 +243,14 @@ class Trainer():
         means of classes. size: [known, feature_dimension]
         '''
         fts_means = []
+        labels = []
         for label in sorted(set(targets)):
+            labels.append(label)
             condition = np.where(targets == label)[0]
             features = embeddings[condition]  # [480, feature_dimension]
             fts_means.append(torch.mean(features, dim=0, keepdim=False))
 
-        return torch.stack(fts_means)  # [self.n_known + len(self.selected_classes), feature_dimension]
+        return torch.stack(fts_means), np.array(labels)  # [self.n_known + len(self.selected_classes), feature_dimension]
 
     def knn(self, ft, embeddings, targets, k_vote):
         '''

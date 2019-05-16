@@ -39,7 +39,7 @@ class TripletLoss(nn.Module):
         ap_distances = (anchors - positives).pow(2).sum(1)
         an_distances = (anchors - negatives).pow(2).sum(1)
         np_distances = (positives - negatives).pow(2).sum(1)
-
+        # print()
         # Loss of triplets
         triplet_loss = F.relu(ap_distances - an_distances + self.margin)
         non_zero = torch.nonzero(triplet_loss.cpu().data).size(0)
@@ -51,7 +51,7 @@ class TripletLoss(nn.Module):
         sparse_term = (l1_norm(anchors) + l1_norm(positives) + l1_norm(negatives)) / 3
         pairwise_term = F.relu((ap_distances + (-an_distances) + (-np_distances)).mean())
 
-        return triplet_term, sparse_term, pairwise_term, len(anchors)
+        return triplet_term, sparse_term, pairwise_term, len(anchors), ap_distances.mean().item(), an_distances.mean().item()
 
 def gettriplet(method,embedings,targets):
 
