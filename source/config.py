@@ -20,7 +20,7 @@ def arg():
                         help='number of triplet in dataset (default: 32)')
     parser.add_argument('--amount', default=0, type=int,
                         help='amount of each class for train data')
-    parser.add_argument('--batch_n_classes', default=7, type=int,
+    parser.add_argument('--batch_n_classes', default=10, type=int,
                         help='depend on your dataset')
     parser.add_argument('--batch_n_num', default=20, type=int,
                         help='depend on your dataset, number for each class per batch')

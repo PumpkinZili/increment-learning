@@ -1,6 +1,6 @@
 from config import getArgs
 from tensorboardX import  SummaryWriter
-from utils import makedir, TripletLoss, generate_all_triplet,generate_batch_hard_triplet,generate_random_triplets
+from utils import makedir, TripletLoss, TripletLossV2, generate_all_triplet,generate_batch_hard_triplet,generate_random_triplets
 from model import EmbeddingNet
 import torch
 from torch.optim import lr_scheduler
@@ -43,6 +43,7 @@ def main():
         cudnn.benchmark = True
     # print(args.method)
     criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
+    # criterion = TripletLossV2(margin=args.margin).cuda()
     trainer = Trainer(args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model, criterion, writer, f, save_path, classes)
     trainer.run()
     f.close()

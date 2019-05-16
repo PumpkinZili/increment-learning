@@ -54,6 +54,30 @@ class TripletLoss(nn.Module):
 
         return triplet_term, sparse_term, pairwise_term, len(anchors), ap_distances.mean().item(), an_distances.mean().item()
 
+
+class TripletLossV2(nn.Module):
+    """TripletLoss and Inner class Loss together
+    """
+
+    def __init__(self, margin):
+        super(TripletLossV2, self).__init__()
+        self.margin = margin
+
+    def forward(self, anchor, positive, negative, size_average=None):
+        """Average
+        Args:
+            size_average: None, average on semi and hard,
+
+        """
+        distance_positive = (anchor - positive).pow(2).sum(1)  # .pow(.5)
+        distance_negative = (anchor - negative).pow(2).sum(1)  # .pow(.5)
+
+        triplet_loss = F.relu(distance_positive - distance_negative + self.margin)
+
+        if size_average == None:
+            return triplet_loss.mean() if size_average else triplet_loss.sum(), distance_positive.mean().item(), distance_negative.mean().item()
+
+
 def gettriplet(method,embedings,targets):
 
     if method == 'batchhard':
@@ -65,7 +89,8 @@ def gettriplet(method,embedings,targets):
     else:
         print(method)
         raise NotImplementedError
-    return anchors, positives, negatives
+    return anchors, positives, negatives,
+
 
 def pairwise_distances(x, y=None):
     '''
@@ -91,7 +116,6 @@ def pairwise_distances(x, y=None):
         dist = dist - torch.diag(dist)
 
     return torch.clamp(dist, 0.0, np.inf)
-
 
 
 def generate_k_triplet(embeddeds, targets, K=2, B=2):
@@ -262,6 +286,7 @@ def generate_all_triplet(embeddeds, targets):
 
     return anchor, positive, negative
 
+
 class AverageMeter(object):
     '''
     Computes and stores the average.
@@ -300,6 +325,7 @@ def makedir(args):
     output1 = 'main_' + now_time
     f = open(args.check_path + os.path.sep + output1 + '.txt', 'w+')
     return now_time, f, save_path
+
 
 def init_path(args):
     path_cm = os.path.join(args.check_path, 'confusion_matrix')
@@ -348,7 +374,6 @@ def printConfig(args,f, optimizer):
     f.write("test_batch_size: {}".format(args.test_batch_size) + '\r\n')
     f.write("is_pretrained: {}".format(args.is_pretrained) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
-
 
 
 def plot_sparsity_histogram(features, idx_to_name, save_dir):
