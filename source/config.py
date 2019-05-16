@@ -1,18 +1,15 @@
 import argparse
 import os
 def arg():
-    parser = argparse.ArgumentParser(
-        description='Classifiar using triplet loss.')
+    parser = argparse.ArgumentParser(description='Classifiar using triplet loss.')
     parser.add_argument('--CVDs', type=str, default='7', metavar='CUDA_VISIBLE_DEVICES',
                         help='CUDA_VISIBLE_DEVICES')
     parser.add_argument('--server', type=int, default=16, metavar='T',
                         help='which server is being used')
     parser.add_argument('--train-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/train2',
-                        metavar='dir',
-                        help='path of train set.')
+                        metavar='dir', help='path of train set.')
     parser.add_argument('--test-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/test2',
-                        metavar='dir',
-                        help='path of test set.')
+                        metavar='dir', help='path of test set.')
     parser.add_argument('--train-set-csv', type=str,
                         default='/home/zili/memory/FaceRecognition-master/data/cifar100/train.csv', metavar='file',
                         help='path of train set.csv.')
@@ -32,7 +29,7 @@ def arg():
                         help='number of epochs to train (default: 100)')
     parser.add_argument('--embedding-size', type=int, default=128, metavar='number',
                         help='embedding size of model (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
     parser.add_argument('--margin', type=float, default=1., metavar='margin',
                         help='loss margin (default: 1.0)')

@@ -1,5 +1,5 @@
 import torch
-from utils import AverageMeter, plot_confusion_matrix, plot_sparsity_histogram, gettriplet
+from utils import AverageMeter, plot_confusion_matrix, plot_sparsity_histogram, gettriplet, printConfig
 from torch.autograd import Variable
 import numpy as np
 import datetime
@@ -32,12 +32,14 @@ class Trainer():
         start_time = datetime.datetime.now()
         best_accy =0.
         for epoch in range(1, self.args.epoch+1):
-            self.scheduler.step()
+            if self.scheduler is not None:
+                self.scheduler.step()
             train_loss = self.train(epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
 
             if epoch % 4 == 0:
+                printConfig(self.args, self.f, self.optimizer)
                 # sys.exit(1)
                 # Validate
                 validate_start = datetime.datetime.now()
@@ -154,13 +156,16 @@ class Trainer():
 
             if torch.cuda.is_available() is True:
                 images, labels = images.cuda(), labels.cuda()
+
             # Extract features
             embeddings = model(images)
             # anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+
             # Loss
             triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
             loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
             # loss, ap, an = criterion(anchor, positive, negative)
+
             losses.update(loss.item())
             optimizer.zero_grad()
             loss.backward()
