@@ -87,7 +87,6 @@ def adjustedArgs(args):
 
 def getArgs():
     args = arg()
-
     args = adjustedArgs(args)
     return args
 

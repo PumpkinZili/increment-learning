@@ -40,14 +40,15 @@ class Trainer():
 
             if epoch % 4 == 0:
                 printConfig(self.args, self.f, self.optimizer)
-                # sys.exit(1)
+
                 # Validate
                 validate_start = datetime.datetime.now()
 
                 with torch.no_grad():
                     benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
                 embeddings, targets = benchmark  # from training set [n, feature_dimension]
-                fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [known, feature_dimension]
+                fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [n, feature_dimension], [n]
+
                 clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
                 clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
 
@@ -153,7 +154,7 @@ class Trainer():
         losses = AverageMeter()
         model.train()
         for step, (images, labels) in enumerate(loader):
-
+            print(labels)
             if torch.cuda.is_available() is True:
                 images, labels = images.cuda(), labels.cuda()
 
@@ -172,8 +173,7 @@ class Trainer():
             optimizer.step()
 
             # Print process
-            if step % 5 == 0:
-                print(ap, an)
+            # print(ap, an)
             if (step) % 25 == 0:
                 info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
                     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
@@ -185,7 +185,7 @@ class Trainer():
 
     def validate(self, epoch, model, benchmark, loader, fts_means, clf_knn, clf_ncm):
         '''
-                Validate the result of model in loader via KNN and NCM
+            Validate the result of model in loader via KNN and NCM
         '''
         accuracies_knn = AverageMeter()
         accuracies_ncm = AverageMeter()
