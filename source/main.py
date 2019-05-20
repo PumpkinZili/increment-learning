@@ -10,6 +10,8 @@ from torch.backends import cudnn
 from trainer import Trainer
 import sys
 import os
+
+
 def main():
     args = getArgs()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.CVDs
@@ -20,12 +22,16 @@ def main():
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
 
-    dataset = SpecificDataset(args, data_augmentation=False)
+    dataset = SpecificDataset(args, data_augmentation=True)
     classes = dataset.classes
     train_dataset = SampledDataset(dataset.train_dataset, dataset.channels, args.amount)
     print('Train data has {}'.format(len(train_dataset)))
 
-    test_dataset = dataset.test_dataset
+    # test_dataset = dataset.test_dataset
+    # print(dataset.test_dataset.dataset_name)
+    # te = dataset.test_dataset_fc
+    # print(te.data_name)
+    test_dataset = SampledDataset(dataset.test_dataset, dataset.channels, args.amount)
     print('Validation data has {}'.format(len(test_dataset)))
 
     kwargs = {'num_workers': 8, 'pin_memory': False}
@@ -34,7 +40,7 @@ def main():
     sampler_train_loader = torch.utils.data.DataLoader(train_dataset,
                                                        batch_sampler=batch_sampler, **kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset,
-                                               batch_size=args.train_batch_size, shuffle=True, **kwargs)
+                                               batch_size=args.test_batch_size, shuffle=True, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_dataset,
                                               batch_size=args.test_batch_size, shuffle=False, **kwargs)
 

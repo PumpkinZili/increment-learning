@@ -45,6 +45,7 @@ class SpecificDataset(object):
 
         self.train_dataset.dataset_name = self.dataset_name
         self.test_dataset.dataset_name = self.dataset_name
+        self.test_dataset_fc.dataset_name = self.dataset_name
 
     def load_MNIST(self):
         self.mean, self.std = 0.1307, 0.3081
@@ -62,6 +63,9 @@ class SpecificDataset(object):
         self.train_dataset = torchvision.datasets.MNIST(self.args.train_set, train=True, download=False,
                                                         transform=train_transform)
         self.train_dataset.data = self.train_dataset.data.numpy()
+
+        self.train_dataset.train = True
+        self.test_dataset.train = False
         self.test_dataset = torchvision.datasets.MNIST(self.args.test_set, train=False, download=False, transform=test_transform)
         # self.test_dataset.data = self.test_dataset.data.numpy()
         self.width, self.height = 28, 28
@@ -86,8 +90,10 @@ class SpecificDataset(object):
 
         self.train_dataset = torchvision.datasets.CIFAR10(root=self.args.train_set, train=True, download=False,
                                                           transform=train_transform)
+        self.train_dataset.train = True
         self.test_dataset = torchvision.datasets.CIFAR10(root=self.args.test_set, train=False, download=False,
                                                          transform=test_transform)
+        self.test_dataset.train = False
         self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
         self.width, self.height = 32, 32
@@ -116,10 +122,13 @@ class SpecificDataset(object):
 
         self.train_dataset = torchvision.datasets.CIFAR100(root=self.args.train_set, train=True, download=False,
                                                            transform=train_transform)
+        self.train_dataset.train = True
         self.test_dataset = torchvision.datasets.CIFAR100(root=self.args.test_set, train=False, download=False,
                                                           transform=test_transform)
+        self.test_dataset.train = False
         self.test_dataset_fc = torchvision.datasets.CIFAR100(root=self.args.test_set, train=False, download=False,
                                                              transform=test_transform_fc)
+        self.test_dataset_fc.train = False
 
         self.classes = self.train_dataset.classes
         self.width, self.height = 32, 32
@@ -144,6 +153,7 @@ class SpecificDataset(object):
         train_transform.transforms.append(transforms.ToTensor())
         train_transform.transforms.append(transforms.Normalize(self.mean, self.std))
         test_transform = transforms.Compose([
+            transforms.Resize(32),
             transforms.ToTensor(),
             transforms.Normalize(self.mean, self.std)
         ])
@@ -151,12 +161,14 @@ class SpecificDataset(object):
         self.train_dataset = torchvision.datasets.ImageFolder(self.args.train_set, transform=train_transform)
         self.train_dataset.train = True
         self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)
-        self.val_dataset = torchvision.datasets.ImageFolder(self.args.test_set, transform=test_transform)
-        self.val_dataset.train = False
-        self.val_dataset.data, self.val_dataset.targets = self.tuple2list(self.val_dataset)
+
         self.test_dataset = torchvision.datasets.ImageFolder(self.args.test_set, transform=test_transform)
         self.test_dataset.data, self.test_dataset.targets = self.tuple2list(self.test_dataset)
         self.test_dataset.train = False
+
+        self.test_dataset_fc = torchvision.datasets.ImageFolder(self.args.test_set, transform=test_transform_fc)
+        self.test_dataset_fc.data, self.test_dataset_fc.targets = self.tuple2list(self.test_dataset_fc)
+        self.test_dataset_fc.train = False
 
         self.classes = self.train_dataset.classes
         self.width, self.height = 32, 32
@@ -184,7 +196,7 @@ class SampledDataset(Dataset):
         self.transform = dataset.transform
         self.channels = channels
         self.dataset_name = dataset.dataset_name
-
+        # print(self.dataset_name)
         if self.train:
             data = dataset.data
             labels = dataset.targets

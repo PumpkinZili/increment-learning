@@ -199,7 +199,7 @@ class Trainer():
 
             predict = clf_ncm.predict(fts.cpu().data.numpy())
             count = (torch.tensor(predict) == labels.data).sum()
-            # print(count.item())
+            print(count.item(), labels.size(0))
             accuracies_ncm.update(count.item(), labels.size(0))
             pred_fts.extend(fts.cpu())
             pred_lbls.extend(predict)
