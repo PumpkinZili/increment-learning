@@ -29,7 +29,7 @@ def arg():
                         help='number of epochs to train (default: 100)')
     parser.add_argument('--embedding-size', type=int, default=128, metavar='number',
                         help='embedding size of model (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.01)')
     parser.add_argument('--margin', type=float, default=1., metavar='margin',
                         help='loss margin (default: 1.0)')

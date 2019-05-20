@@ -56,8 +56,6 @@ class Trainer():
                 train_accy, train_fts, train_lbls = self.validate(epoch=epoch,
                                                                   model=self.model,
                                                                   loader=self.train_loader,
-                                                                  benchmark=benchmark,
-                                                                  fts_means=fts_means,
                                                                   clf_knn=clf_knn,
                                                                   clf_ncm=clf_ncm)
 
@@ -65,13 +63,11 @@ class Trainer():
                 valid_accy, pred_fts, pred_lbls = self.validate(epoch=epoch,
                                                                 model=self.model,
                                                                 loader=self.test_loader,
-                                                                benchmark=benchmark,
-                                                                fts_means=fts_means,
                                                                 clf_knn=clf_knn,
                                                                 clf_ncm=clf_ncm)
 
-                info = 'Epoch: {}, Train_loss: {:.4f}, Train_accy(KNN, NCM): {:.4f}, {:.4f}, \
-                Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
+                info = 'Epoch: {}, Train_loss: {:.4f}, Train_accy(KNN, NCM): {:.4f}, {:.4f}, ' \
+                       'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
                     epoch, train_loss, train_accy[0], train_accy[1], valid_accy[0], valid_accy[1],
                     (datetime.datetime.now() - validate_start).seconds)
                 print(info)
@@ -81,8 +77,8 @@ class Trainer():
                 self.writer.add_scalar(tag='Train accy(NCM)', scalar_value=train_accy[1], global_step=epoch)
                 self.writer.add_scalar(tag='Valid accy(KNN)', scalar_value=valid_accy[0], global_step=epoch)
                 self.writer.add_scalar(tag='Valid accy(NCM)', scalar_value=valid_accy[1], global_step=epoch)
-                best_accy = max(best_accy, valid_accy[0])
-                if train_accy[0] >= 0.98 and valid_accy[0] >= best_accy:  # save the best state
+                best_accy = max(best_accy, valid_accy[1])
+                if train_accy[1] >= 0.98 and valid_accy[1] >= best_accy:  # save the best state
 
                     state_best = {
                         'epoch': epoch,
@@ -154,36 +150,37 @@ class Trainer():
         losses = AverageMeter()
         model.train()
         for step, (images, labels) in enumerate(loader):
-            print(labels)
+            # print(labels)
             if torch.cuda.is_available() is True:
                 images, labels = images.cuda(), labels.cuda()
 
             # Extract features
             embeddings = model(images)
-            # anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+            anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
 
             # Loss
-            triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
-            loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
-            # loss, ap, an = criterion(anchor, positive, negative)
+            # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
+            # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
+            loss, ap, an = criterion(anchor, positive, negative)
 
             losses.update(loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # Print process
+            if step % 4 ==0:
+                print(ap,an)
             # print(ap, an)
-            if (step) % 25 == 0:
-                info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
-                    epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
-                # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f}'.format(epoch, step, len(loader), losses.avg)
+            if (step+1) % 25 == 0:
+                    # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
+                #     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
+                info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f}'.format(epoch, step, len(loader), losses.avg)
                 self.f.write(info + '\r\n')
                 print(info)
 
         return losses.avg
 
-    def validate(self, epoch, model, benchmark, loader, fts_means, clf_knn, clf_ncm):
+    def validate(self, epoch, model, loader, clf_knn, clf_ncm):
         '''
             Validate the result of model in loader via KNN and NCM
         '''
@@ -194,32 +191,40 @@ class Trainer():
         # Switch to evaluation mode
         model.eval()
 
-        embeddings, targets = benchmark
-
         for step, (images, labels) in enumerate(loader):  # int, (Tensor, Tensor)
             if torch.cuda.is_available() is True:
                 images = images.cuda()
             with torch.no_grad():
                 fts = model(images)  # Tensor [batch_size, feature_dimension]
 
-            for ft, lbl in zip(fts, labels):
-                # KNN
-                # predict = self.knn(ft=ft, embeddings=embeddings, targets=targets, k_vote=self.args.vote)
-                predict = clf_knn.predict(ft.cpu().data.numpy().reshape(1,-1))
-                pred_fts.append(ft.cpu())
-                pred_lbls.append(predict)
-                if predict == lbl.data.numpy():
-                    accuracies_knn.update(1)
-                else:
-                    accuracies_knn.update(0)
+            predict = clf_ncm.predict(fts.cpu().data.numpy())
+            count = (torch.tensor(predict) == labels.data).sum()
+            # print(count.item())
+            accuracies_ncm.update(count.item(), labels.size(0))
+            pred_fts.extend(fts.cpu())
+            pred_lbls.extend(predict)
 
-                # NCM
-                # predict = self.ncm(ft=ft, means=fts_means)
-                predict = clf_ncm.predict(ft.cpu().data.numpy().reshape(1,-1))
-                if predict == lbl.data.numpy():
-                    accuracies_ncm.update(1)
-                else:
-                    accuracies_ncm.update(0)
+            predict = clf_knn.predict(fts.cpu().data.numpy())
+            count = (torch.tensor(predict) == labels.data).sum()
+            accuracies_knn.update(count.item(), labels.size(0))
+            # for ft, lbl in zip(fts, labels):
+            #     # KNN
+            #     # predict = self.knn(ft=ft, embeddings=embeddings, targets=targets, k_vote=self.args.vote)
+            #     predict = clf_knn.predict(ft.cpu().data.numpy().reshape(1,-1))
+            #     pred_fts.append(ft.cpu())
+            #     pred_lbls.append(predict)
+            #     if predict == lbl.data.numpy():
+            #         accuracies_knn.update(1)
+            #     else:
+            #         accuracies_knn.update(0)
+            #
+            #     # NCM
+            #     # predict = self.ncm(ft=ft, means=fts_means)
+            #     predict = clf_ncm.predict(ft.cpu().data.numpy().reshape(1,-1))
+            #     if predict == lbl.data.numpy():
+            #         accuracies_ncm.update(1)
+            #     else:
+            #         accuracies_ncm.update(0)
 
         # to numpy
         pred_fts = torch.stack(pred_fts).view(-1, self.args.embedding_size).data.numpy()
