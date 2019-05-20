@@ -53,14 +53,14 @@ class Trainer():
                 clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
 
                 # Train accuracy
-                train_accy, train_fts, train_lbls = self.validate(epoch=epoch,
+                train_accy, train_fts, train_lbls = self.validate(args=self.args,
                                                                   model=self.model,
                                                                   loader=self.train_loader,
                                                                   clf_knn=clf_knn,
                                                                   clf_ncm=clf_ncm)
 
                 # Test accuracy
-                valid_accy, pred_fts, pred_lbls = self.validate(epoch=epoch,
+                valid_accy, pred_fts, pred_lbls = self.validate(args=self.args,
                                                                 model=self.model,
                                                                 loader=self.test_loader,
                                                                 clf_knn=clf_knn,
@@ -180,7 +180,7 @@ class Trainer():
 
         return losses.avg
 
-    def validate(self, epoch, model, loader, clf_knn, clf_ncm):
+    def validate(self, args, model, loader, clf_knn, clf_ncm):
         '''
             Validate the result of model in loader via KNN and NCM
         '''
@@ -194,8 +194,14 @@ class Trainer():
         for step, (images, labels) in enumerate(loader):  # int, (Tensor, Tensor)
             if torch.cuda.is_available() is True:
                 images = images.cuda()
-            with torch.no_grad():
-                fts = model(images)  # Tensor [batch_size, feature_dimension]
+            with torch.no_grad():  # Tensor [batch_size, feature_dimension]
+                if args.data_augmentation is True:
+                    bns, ncrops, c, h, w = images.size()
+                    output = model(images.view(-1, c, h, w))
+                    output_avg = output.view(bns, ncrops, -1).mean(1)
+                    fts = output_avg
+                else:
+                    fts = model(images)
 
             predict = clf_ncm.predict(fts.cpu().data.numpy())
             count = (torch.tensor(predict) == labels.data).sum()

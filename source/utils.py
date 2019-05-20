@@ -361,6 +361,7 @@ def printConfig(args,f, optimizer):
     print("train_batch_size: {}".format(args.train_batch_size))
     print("test_batch_size: {}".format(args.test_batch_size))
     print("is_pretrained: {}".format(args.is_pretrained))
+    print("data_augmentation: {}".format(args.data_augmentation))
     print("optimizer: {}".format(optimizer))
     f.write("train dataset:{}".format(args.train_set) + '\r\n')
     f.write("dropout: {}".format(args.dropout_p) + '\r\n')
@@ -373,6 +374,7 @@ def printConfig(args,f, optimizer):
     f.write("train_batch_size: {}".format(args.train_batch_size) + '\r\n')
     f.write("test_batch_size: {}".format(args.test_batch_size) + '\r\n')
     f.write("is_pretrained: {}".format(args.is_pretrained) + '\r\n')
+    f.write("data_augmentation: {}".format(args.data_augmentation) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
 
 

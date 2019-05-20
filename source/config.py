@@ -57,7 +57,8 @@ def arg():
                         help='method of sample, batchhard, batchall, batchrandom')
     parser.add_argument('--is-pretrained', type=bool, default=False, metavar='R',
                         help='whether model is pretrained.')
-
+    parser.add_argument('--data_augmentation', type=bool, default=False, metavar='R',
+                        help='whether data_augmentation.')
     args = parser.parse_args()
     return args
 

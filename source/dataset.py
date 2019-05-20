@@ -149,7 +149,12 @@ class SpecificDataset(object):
             test_transform_fc.transforms.append(transforms.FiveCrop(32))
             test_transform_fc.transforms.append(transforms.Lambda(lambda crops: torch.stack \
                 ([transforms.Normalize(self.mean, self.std)(transforms.ToTensor()(crop)) for crop in crops])))
-
+        else:
+            test_transform_fc = transforms.Compose([
+                transforms.Resize(32),
+                transforms.ToTensor(),
+                transforms.Normalize(self.mean, self.std)
+            ])
         train_transform.transforms.append(transforms.ToTensor())
         train_transform.transforms.append(transforms.Normalize(self.mean, self.std))
         test_transform = transforms.Compose([

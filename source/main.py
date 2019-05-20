@@ -22,16 +22,16 @@ def main():
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
 
-    dataset = SpecificDataset(args, data_augmentation=True)
+    dataset = SpecificDataset(args, data_augmentation=args.data_augmentation)
     classes = dataset.classes
     train_dataset = SampledDataset(dataset.train_dataset, dataset.channels, args.amount)
     print('Train data has {}'.format(len(train_dataset)))
 
-    # test_dataset = dataset.test_dataset
+    test_dataset = dataset.test_dataset_fc
     # print(dataset.test_dataset.dataset_name)
     # te = dataset.test_dataset_fc
     # print(te.data_name)
-    test_dataset = SampledDataset(dataset.test_dataset, dataset.channels, args.amount)
+    # test_dataset = SampledDataset(dataset.test_dataset, dataset.channels, args.amount)
     print('Validation data has {}'.format(len(test_dataset)))
 
     kwargs = {'num_workers': 8, 'pin_memory': False}
