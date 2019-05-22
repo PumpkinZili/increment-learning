@@ -25,7 +25,7 @@ def arg():
                         help='input batch size for training (default: 32)')
     parser.add_argument('--test-batch-size', type=int, default=192, metavar='number',
                         help='input batch size for testing (default: 64)')
-    parser.add_argument('--epoch', type=int, default=200, metavar='number',
+    parser.add_argument('--epoch', type=int, default=300, metavar='number',
                         help='number of epochs to train (default: 100)')
     parser.add_argument('--embedding-size', type=int, default=128, metavar='number',
                         help='embedding size of model (default: 256)')
@@ -69,7 +69,7 @@ def adjustedArgs(args):
         args.train_set_csv = '/share/zili/code/triplet/data/cifar100/train.csv'
         args.check_path = '/share/zili/code/checkpoints'
     if args.server == 16:
-        args.train_set = '/data0/zili/code/triplet/data/cifar100/train2'
+        args.train_set = '/data0/zili/code/data/cifar100/balanceddata'
         args.test_set = '/data0/zili/code/triplet/data/cifar100/test2'
         args.train_set_csv = '/data0/zili/code/triplet/data/cifar100/train.csv'
         args.check_path = '/data0/zili/code/checkpoints'

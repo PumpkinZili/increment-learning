@@ -27,11 +27,11 @@ def main():
     train_dataset = SampledDataset(dataset.train_dataset, dataset.channels, args.amount)
     print('Train data has {}'.format(len(train_dataset)))
 
-    test_dataset = dataset.test_dataset_fc
+    # test_dataset = dataset.test_dataset_fc
     # print(dataset.test_dataset.dataset_name)
     # te = dataset.test_dataset_fc
     # print(te.data_name)
-    # test_dataset = SampledDataset(dataset.test_dataset, dataset.channels, args.amount)
+    test_dataset = SampledDataset(dataset.test_dataset, dataset.channels, args.amount)
     print('Validation data has {}'.format(len(test_dataset)))
 
     kwargs = {'num_workers': 8, 'pin_memory': False}

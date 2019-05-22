@@ -169,7 +169,9 @@ class Trainer():
             optimizer.step()
 
             if step % 4 ==0:
-                print(ap,an)
+                s = str(ap)+'   '+str(an)
+                print(s)
+                self.f.write(s+'\r\n')
             # print(ap, an)
             if (step+1) % 25 == 0:
                     # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(

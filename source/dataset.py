@@ -27,10 +27,6 @@ class SpecificDataset(object):
             self.n_classes = 10
             self.gap = False
             self.load_CIFAR10()
-        elif self.dataset_name == 'cifar100':
-            self.n_classes = 100
-            self.gap = False
-            self.load_CIFAR100()
         elif self.dataset_name == 'MNIST':
             self.n_classes = 10
             self.gap = False
@@ -45,29 +41,41 @@ class SpecificDataset(object):
 
         self.train_dataset.dataset_name = self.dataset_name
         self.test_dataset.dataset_name = self.dataset_name
-        self.test_dataset_fc.dataset_name = self.dataset_name
+
 
     def load_MNIST(self):
         self.mean, self.std = 0.1307, 0.3081
 
         train_transform = transforms.Compose([
             transforms.Grayscale(3),
+            transforms.Resize(32),
             transforms.ToTensor(),
             transforms.Normalize((self.mean,), (self.std,))])
 
         test_transform = transforms.Compose([
             transforms.Grayscale(3),
+            transforms.Resize(32),
             transforms.ToTensor(),
             transforms.Normalize((self.mean,), (self.std,))])
 
-        self.train_dataset = torchvision.datasets.MNIST(self.args.train_set, train=True, download=False,
-                                                        transform=train_transform)
-        self.train_dataset.data = self.train_dataset.data.numpy()
+        if self.args.server == 16:
+            path_train = '/data0/zili/code/triplet/data/mnist/train'
+            path_test = '/data0/zili/code/triplet/data/test_class'
+        elif self.args.server == 15:
+            path_train = '/home/zili/code/triplet/data/mnist/train'
+            path_test = '/home/zili/code/triplet/data/test_class'
+
+        self.train_dataset = torchvision.datasets.ImageFolder(path_train, transform=train_transform)
+        self.train_dataset.train = True
+        self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)
+
+        self.test_dataset = torchvision.datasets.ImageFolder(path_test, transform=test_transform)
+        self.test_dataset.data, self.test_dataset.targets = self.tuple2list(self.test_dataset)
+        self.test_dataset.train = False
 
         self.train_dataset.train = True
         self.test_dataset.train = False
-        self.test_dataset = torchvision.datasets.MNIST(self.args.test_set, train=False, download=False, transform=test_transform)
-        # self.test_dataset.data = self.test_dataset.data.numpy()
+
         self.width, self.height = 28, 28
         self.channels = 3
 
@@ -88,49 +96,22 @@ class SpecificDataset(object):
             transforms.Normalize(self.mean,
                                  self.std)])
 
-        self.train_dataset = torchvision.datasets.CIFAR10(root=self.args.train_set, train=True, download=False,
-                                                          transform=train_transform)
+        if self.args.server == 16:
+            path_train = '/data0/zili/code/triplet/data/cifar'
+            path_test = '/data0/zili/code/triplet/data/cifar_test'
+        elif self.args.server == 15:
+            raise NotImplementedError
+
+        self.train_dataset = torchvision.datasets.ImageFolder(path_train, transform=train_transform)
         self.train_dataset.train = True
-        self.test_dataset = torchvision.datasets.CIFAR10(root=self.args.test_set, train=False, download=False,
-                                                         transform=test_transform)
+        self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)
+
+        self.test_dataset = torchvision.datasets.ImageFolder(path_test, transform=test_transform)
+        self.test_dataset.data, self.test_dataset.targets = self.tuple2list(self.test_dataset)
         self.test_dataset.train = False
+
         self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-        self.width, self.height = 32, 32
-        self.channels = 3
-
-    def load_CIFAR100(self):
-        self.mean = (0.51, 0.49, 0.44)
-        self.std = (0.27, 0.26, 0.27)
-
-        train_transform = transforms.Compose([])
-        test_transform_fc = transforms.Compose([])  # use five crop
-        if self.data_augmentation:
-            train_transform.transforms.append(transforms.RandomHorizontalFlip())
-            train_transform.transforms.append(transforms.RandomCrop((32, 32), padding=4))
-            test_transform_fc.transforms.append(transforms.Pad(4))
-            test_transform_fc.transforms.append(transforms.FiveCrop(32))
-            test_transform_fc.transforms.append(transforms.Lambda(lambda crops: torch.stack \
-                ([transforms.Normalize(self.mean, self.std)(transforms.ToTensor()(crop)) for crop in crops])))
-
-        train_transform.transforms.append(transforms.ToTensor())
-        train_transform.transforms.append(transforms.Normalize(self.mean, self.std))
-        test_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(self.mean, self.std)
-        ])
-
-        self.train_dataset = torchvision.datasets.CIFAR100(root=self.args.train_set, train=True, download=False,
-                                                           transform=train_transform)
-        self.train_dataset.train = True
-        self.test_dataset = torchvision.datasets.CIFAR100(root=self.args.test_set, train=False, download=False,
-                                                          transform=test_transform)
-        self.test_dataset.train = False
-        self.test_dataset_fc = torchvision.datasets.CIFAR100(root=self.args.test_set, train=False, download=False,
-                                                             transform=test_transform_fc)
-        self.test_dataset_fc.train = False
-
-        self.classes = self.train_dataset.classes
         self.width, self.height = 32, 32
         self.channels = 3
 
@@ -143,8 +124,6 @@ class SpecificDataset(object):
         train_transform = transforms.Compose([])
         test_transform_fc = transforms.Compose([])  # use five crop
         if self.data_augmentation:
-            train_transform.transforms.append(transforms.RandomHorizontalFlip())
-            train_transform.transforms.append(transforms.RandomCrop((32, 32), padding=4))
             test_transform_fc.transforms.append(transforms.Pad(4))
             test_transform_fc.transforms.append(transforms.FiveCrop(32))
             test_transform_fc.transforms.append(transforms.Lambda(lambda crops: torch.stack \
@@ -155,6 +134,8 @@ class SpecificDataset(object):
                 transforms.ToTensor(),
                 transforms.Normalize(self.mean, self.std)
             ])
+        train_transform.transforms.append(transforms.RandomHorizontalFlip())
+        train_transform.transforms.append(transforms.RandomCrop((32, 32), padding=4))
         train_transform.transforms.append(transforms.ToTensor())
         train_transform.transforms.append(transforms.Normalize(self.mean, self.std))
         test_transform = transforms.Compose([
@@ -162,7 +143,12 @@ class SpecificDataset(object):
             transforms.ToTensor(),
             transforms.Normalize(self.mean, self.std)
         ])
-
+        if self.args.server == 16:
+            path_train = '/data0/zili/code/data/cifar100/train'
+            path_test = '/data0/zili/code/data/cifar100/test'
+        elif self.args.server == 15:
+            path_train = '/home/zili/code/data/cifar100/train'
+            path_test = '/home/zili/code/data/cifar100/test'
         self.train_dataset = torchvision.datasets.ImageFolder(self.args.train_set, transform=train_transform)
         self.train_dataset.train = True
         self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)
@@ -174,6 +160,8 @@ class SpecificDataset(object):
         self.test_dataset_fc = torchvision.datasets.ImageFolder(self.args.test_set, transform=test_transform_fc)
         self.test_dataset_fc.data, self.test_dataset_fc.targets = self.tuple2list(self.test_dataset_fc)
         self.test_dataset_fc.train = False
+        self.test_dataset_fc.dataset_name = self.dataset_name
+
 
         self.classes = self.train_dataset.classes
         self.width, self.height = 32, 32
@@ -222,18 +210,11 @@ class SampledDataset(Dataset):
             self.target_img_dict.update({target: idx})
 
     def __getitem__(self, index):
-        if self.dataset_name in ['MNIST', 'cifar10', 'cifar100', 'cifar100_10']:
-            img = self.data[index]
-            target = self.targets[index]
-            img = Image.fromarray(img.transpose(0,2).numpy().astype(np.uint8))
-            # img = Image.fr
-            img = self.transform(img)
-        else:
-            path = self.data[index]
-            # print(path.shape)
-            target = self.targets[index]
-            img = pil_loader(path)
-            img = self.transform(img)
+        img = self.data[index]
+        # print(path.shape)
+        target = self.targets[index]
+        # img = pil_loader(path)
+        # img = self.transform(img)
 
         return img, target
 
