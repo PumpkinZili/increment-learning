@@ -69,7 +69,7 @@ def adjustedArgs(args):
         args.train_set_csv = '/share/zili/code/triplet/data/cifar100/train.csv'
         args.check_path = '/share/zili/code/checkpoints'
     if args.server == 16:
-        args.train_set = '/data0/zili/code/data/cifar100/balanceddata'
+        args.train_set = '/data0/zili/code/data/cifar100/train'
         args.test_set = '/data0/zili/code/triplet/data/cifar100/test2'
         args.train_set_csv = '/data0/zili/code/triplet/data/cifar100/train.csv'
         args.check_path = '/data0/zili/code/checkpoints'

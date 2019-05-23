@@ -161,7 +161,10 @@ class Trainer():
             # Loss
             # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
             # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
-            loss, ap, an = criterion(anchor, positive, negative)
+            if self.args.method == 'semihard':
+                loss, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
+            else:
+                loss, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
 
             losses.update(loss.item())
             optimizer.zero_grad()

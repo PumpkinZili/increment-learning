@@ -63,7 +63,7 @@ class TripletLossV2(nn.Module):
         super(TripletLossV2, self).__init__()
         self.margin = margin
 
-    def forward(self, anchor, positive, negative, size_average=None):
+    def forward(self, anchor, positive, negative, isSemiHard):
         """Average
         Args:
             size_average: None, average on semi and hard,
@@ -73,16 +73,24 @@ class TripletLossV2(nn.Module):
         distance_negative = (anchor - negative).pow(2).sum(1)  # .pow(.5)
 
         triplet_loss = F.relu(distance_positive - distance_negative + self.margin)
+        if isSemiHard:
+            semi = torch.nonzero((triplet_loss <= self.margin) & (triplet_loss > 0))
+            triplet_loss.index_select(dim=0, index=semi.squeeze())
 
-        if size_average == None:
-            return triplet_loss.mean() if size_average else triplet_loss.sum(), distance_positive.mean().item(), distance_negative.mean().item()
+        # non_zero = torch.nonzero(triplet_loss.cpu().data).size(0)
+        # if non_zero == 0:
+        #     triplet_loss = triplet_loss.mean()
+        # else:
+        #     triplet_loss = (triplet_loss / non_zero).sum()
+
+        return triplet_loss.mean(), distance_positive.mean().item(), distance_negative.mean().item()
 
 
 def gettriplet(method,embedings,targets):
 
     if method == 'batchhard':
         anchors, positives, negatives = generate_batch_hard_triplet(embedings, targets)
-    elif method == 'batchall':
+    elif method == 'batchall' or method == 'semihard':
         anchors, positives, negatives = generate_all_triplet(embedings, targets)
     elif method == 'batchrandom':
         anchors, positives, negatives = generate_random_triplets(embedings, targets)
@@ -271,6 +279,43 @@ def generate_all_triplet(embeddeds, targets):
             if iid == i:
                 continue
             for oid in outcls_id:
+                anchor.append(un_embeddeds[i])
+                positive.append(un_embeddeds[iid])
+                negative.append(un_embeddeds[oid])
+    try:
+        anchor = torch.cat(anchor, 0)
+        positive = torch.cat(positive, 0)
+        negative = torch.cat(negative, 0)
+    except Exception as e:
+        print(anchor)
+        print(positive)
+        print(negative)
+        raise RuntimeError
+
+    return anchor, positive, negative
+
+
+def generate_semi_hard_triplet(embeddeds, targets):
+    batch_len = embeddeds.size(0)
+    ts = targets.reshape(-1).cpu().data.numpy()
+
+    un_embeddeds = embeddeds.unsqueeze(dim=1)
+
+    anchor, positive, negative = [], [], []
+
+    for i in range(batch_len):
+        incls_id = np.nonzero(ts == ts[i])[0]
+
+        outcls_id = np.nonzero(ts != ts[i])[0]
+
+        if incls_id.size <= 1 or outcls_id.size < 1:
+            continue
+
+        for iid in incls_id:
+            if iid == i:
+                continue
+            for oid in outcls_id:
+
                 anchor.append(un_embeddeds[i])
                 positive.append(un_embeddeds[iid])
                 negative.append(un_embeddeds[oid])
