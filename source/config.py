@@ -17,9 +17,9 @@ def arg():
                         help='number of triplet in dataset (default: 32)')
     parser.add_argument('--amount', default=0, type=int,
                         help='amount of each class for train data')
-    parser.add_argument('--batch_n_classes', default=10, type=int,
+    parser.add_argument('--batch_n_classes', default=7, type=int,
                         help='depend on your dataset')
-    parser.add_argument('--batch_n_num', default=10, type=int,
+    parser.add_argument('--batch_n_num', default=5, type=int,
                         help='depend on your dataset, number for each class per batch')
     parser.add_argument('--train-batch-size', type=int, default=96, metavar='number',
                         help='input batch size for training (default: 32)')
@@ -29,7 +29,7 @@ def arg():
                         help='number of epochs to train (default: 100)')
     parser.add_argument('--embedding-size', type=int, default=128, metavar='number',
                         help='embedding size of model (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
     parser.add_argument('--margin', type=float, default=1., metavar='margin',
                         help='loss margin (default: 1.0)')
