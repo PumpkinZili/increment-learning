@@ -63,7 +63,7 @@ class TripletLossV2(nn.Module):
         super(TripletLossV2, self).__init__()
         self.margin = margin
 
-    def forward(self, anchor, positive, negative, isSemiHard):
+    def forward(self, anchor, positive, negative, isSemiHard, size_average=None):
         """Average
         Args:
             size_average: None, average on semi and hard,
@@ -77,11 +77,11 @@ class TripletLossV2(nn.Module):
             semi = torch.nonzero((triplet_loss <= self.margin) & (triplet_loss > 0))
             triplet_loss.index_select(dim=0, index=semi.squeeze())
 
-        # non_zero = torch.nonzero(triplet_loss.cpu().data).size(0)
-        # if non_zero == 0:
-        #     triplet_loss = triplet_loss.mean()
-        # else:
-        #     triplet_loss = (triplet_loss / non_zero).sum()
+        non_zero = torch.nonzero(triplet_loss.cpu().data).size(0)
+        if non_zero == 0:
+            triplet_loss = triplet_loss.mean()
+        else:
+            triplet_loss = (triplet_loss / non_zero).sum()
 
         return triplet_loss.mean(), distance_positive.mean().item(), distance_negative.mean().item()
 
@@ -407,7 +407,10 @@ def printConfig(args,f, optimizer):
     print("test_batch_size: {}".format(args.test_batch_size))
     print("is_pretrained: {}".format(args.is_pretrained))
     print("data_augmentation: {}".format(args.data_augmentation))
+    print("batch_n_classes: {}".format(args.batch_n_classes))
+    print("batch_n_num: {}".format(args.batch_n_num))
     print("optimizer: {}".format(optimizer))
+
     f.write("train dataset:{}".format(args.train_set) + '\r\n')
     f.write("dropout: {}".format(args.dropout_p) + '\r\n')
     f.write("margin:{}".format(args.margin) + '\r\n')
@@ -420,6 +423,8 @@ def printConfig(args,f, optimizer):
     f.write("test_batch_size: {}".format(args.test_batch_size) + '\r\n')
     f.write("is_pretrained: {}".format(args.is_pretrained) + '\r\n')
     f.write("data_augmentation: {}".format(args.data_augmentation) + '\r\n')
+    f.write("batch_n_classes: {}".format(args.batch_n_classes) + '\r\n')
+    f.write("batch_n_num: {}".format(args.batch_n_num) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
 
 

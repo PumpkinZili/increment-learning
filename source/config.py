@@ -19,7 +19,7 @@ def arg():
                         help='amount of each class for train data')
     parser.add_argument('--batch_n_classes', default=10, type=int,
                         help='depend on your dataset')
-    parser.add_argument('--batch_n_num', default=20, type=int,
+    parser.add_argument('--batch_n_num', default=10, type=int,
                         help='depend on your dataset, number for each class per batch')
     parser.add_argument('--train-batch-size', type=int, default=96, metavar='number',
                         help='input batch size for training (default: 32)')
