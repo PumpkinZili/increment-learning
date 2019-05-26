@@ -41,6 +41,8 @@ def arg():
                         help='Scheduler step size for SGD')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
+    parser.add_argument('--k', type=int, default=20, metavar='S',
+                        help='how many images to be preserved (default: 20)')
     parser.add_argument('--vote', type=int, default=5, metavar='S',
                         help='vote for knn (default: 5)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
@@ -64,24 +66,62 @@ def arg():
 
 def adjustedArgs(args):
     if args.server == 31:
-        args.train_set  = '/share/zili/code/triplet/data/cifar100/train2'
-        args.test_set   = '/share/zili/code/triplet/data/cifar100/test2'
-        args.train_set_csv = '/share/zili/code/triplet/data/cifar100/train.csv'
+        if args.dataset == 'cifar100_10':
+            args.train_set  = '/share/zili/code/triplet/data/cifar100/train2'
+            args.test_set   = '/share/zili/code/triplet/data/cifar100/test2'
+        if args.dataset == 'cifar10':
+            args.train_set = '/share/zili/code/triplet/data/cifar10/train2'
+            args.test_set = '/share/zili/code/triplet/data/cifar10/test2'
+        elif args.dataset == 'mnist':
+            args.train_set = '/share/zili/code/triplet/data/mnist/train'
+            args.test_set = '/share/zili/code/triplet/data/mnist/test'
+        else:
+            print(args.dataset)
+            raise NotImplementedError
         args.check_path = '/share/zili/code/checkpoints'
+
     if args.server == 16:
-        args.train_set = '/data0/zili/code/data/cifar100/train'
-        args.test_set = '/data0/zili/code/triplet/data/cifar100/test2'
-        args.train_set_csv = '/data0/zili/code/triplet/data/cifar100/train.csv'
+        if args.dataset == 'cifar100_10':
+            args.train_set = '/data0/zili/code/data/cifar100/train'
+            args.test_set = '/data0/zili/code/triplet/data/cifar100/test'
+        if args.dataset == 'cifar10':
+            args.train_set = '/data0/zili/code/data/cifar10/train'
+            args.test_set = '/data0/zili/code/data/cifar10/test'
+        elif args.dataset == 'mnist':
+            args.train_set = '/data0/zili/code/triplet/data/mnist/train'
+            args.test_set = '/data0/zili/code/triplet/data/mnist/test'
+        else:
+            print(args.dataset)
+            raise NotImplementedError
         args.check_path = '/data0/zili/code/checkpoints'
+
     if args.server == 17:
-        args.train_set = '/data/jiaxin/zili/data/cifar100/train2'
-        args.test_set = '/data/jiaxin/zili/data/cifar100/test'
-        args.train_set_csv = '/data/jiaxin/zili/data/cifar100/train.csv'
+        if args.dataset == 'cifar100_10':
+            args.train_set = '/data/jiaxin/zili/data/cifar100/train2'
+            args.test_set = '/data/jiaxin/zili/data/cifar100/test'
+        if args.dataset == 'cifar10':
+            args.train_set = '/home/zili/code/data/cifar10/train'
+            args.test_set = '/home/zili/code/data/cifar10/test'
+        elif args.dataset == 'mnist':
+            args.train_set = '/home/zili/code/triplet/data/mnist/train'
+            args.test_set = '/home/zili/code/triplet/data/mnist/test'
+        else:
+            print(args.dataset)
+            raise NotImplementedError
         args.check_path = '/data/jiaxin/zili/checkpoints'
     if args.server == 15:
-        args.train_set = '/home/zili/code/data/cifar100/train'
-        args.test_set = '/home/zili/code/data/cifar100/test'
-        args.train_set_csv = '/home/zili/code/data/cifar100/train.csv'
+        if args.dataset == 'cifar100_10':
+            args.train_set = '/home/zili/code/data/cifar100/train'
+            args.test_set = '/home/zili/code/data/cifar100/test'
+        if args.dataset == 'cifar10':
+            args.train_set = '/home/zili/code/data/cifar10/train'
+            args.test_set = '/home/zili/code/data/cifar10/test'
+        elif args.dataset == 'mnist':
+            args.train_set = '/home/zili/code/triplet/data/mnist/train'
+            args.test_set = '/home/zili/code/triplet/data/mnist/test'
+        else:
+            print(args.dataset)
+            raise NotImplementedError
         args.check_path = '/home/zili/code/checkpoints'
     return args
 

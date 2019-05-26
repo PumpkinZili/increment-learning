@@ -71,6 +71,7 @@ class TripletLossV2(nn.Module):
         """
         distance_positive = (anchor - positive).pow(2).sum(1)  # .pow(.5)
         distance_negative = (anchor - negative).pow(2).sum(1)  # .pow(.5)
+        np_distances = (positive - negative).pow(2).sum(1)
 
         triplet_loss = F.relu(distance_positive - distance_negative + self.margin)
         if isSemiHard:
@@ -82,8 +83,9 @@ class TripletLossV2(nn.Module):
             triplet_loss = triplet_loss.mean()
         else:
             triplet_loss = (triplet_loss / non_zero).sum()
+        pairwise_term = F.relu((distance_positive + (-distance_negative) + (-np_distances)).mean())
 
-        return triplet_loss.mean(), distance_positive.mean().item(), distance_negative.mean().item()
+        return triplet_loss.mean(), pairwise_term, distance_positive.mean().item(), distance_negative.mean().item()
 
 
 def gettriplet(method,embedings,targets):
@@ -375,22 +377,25 @@ def makedir(args):
 def init_path(args):
     path_cm = os.path.join(args.check_path, 'confusion_matrix')
     path_tsne = os.path.join(args.check_path, 'tsne')
-    path_tbx = os.path.join(args.check_path, 'tensorboardX')
+    path_ebd = os.path.join(args.check_path, 'embeddings')
     path_log = os.path.join(args.check_path, 'log')
     path_pkl = os.path.join(args.check_path, 'pkl')
     path_sparsity = os.path.join(args.check_path, 'sparsity')
     path_state_tsne = os.path.join(args.check_path, 'state_tsne')
     path_source = os.path.join(args.check_path, 'source')
+    path_images = os.path.join(args.check_path, 'images')
     mkdir(path_cm)
     mkdir(path_tsne)
-    mkdir(path_tbx)
+    mkdir(path_ebd)
     mkdir(path_log)
     mkdir(path_pkl)
     mkdir(path_sparsity)
     mkdir(path_state_tsne)
     mkdir(path_source)
-    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_tbx':path_tbx, 'path_log':path_log,
-                 'path_pkl':path_pkl, 'path_sparsity':path_sparsity, 'path_state_tsne':path_state_tsne, 'path_source':path_source}
+    mkdir(path_images)
+    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_ebd':path_ebd, 'path_log':path_log,
+                 'path_pkl':path_pkl, 'path_sparsity':path_sparsity, 'path_state_tsne':path_state_tsne,
+                 'path_source':path_source, 'path_images':path_images}
     return save_path
 
 

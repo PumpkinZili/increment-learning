@@ -5,7 +5,9 @@ import numpy as np
 import datetime
 from sklearn.metrics import confusion_matrix
 import os
+import random
 import sys
+import shutil
 from sklearn import neighbors
 class Trainer():
     def __init__(self, args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model, criterion, writer, file_writer, save_path, classes):
@@ -48,6 +50,7 @@ class Trainer():
                     benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
                 embeddings, targets = benchmark  # from training set [n, feature_dimension]
                 fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [n, feature_dimension], [n]
+                self.preserve_image(epoch,embeddings,targets,fts_means)
 
                 clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
                 clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
@@ -162,10 +165,10 @@ class Trainer():
             # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
             # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
             if self.args.method == 'semihard':
-                loss, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
+                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
             else:
-                loss, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
-
+                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
+            loss = triplet_loss
             losses.update(loss.item())
             optimizer.zero_grad()
             loss.backward()
@@ -274,6 +277,56 @@ class Trainer():
             fts_means.append(torch.mean(features, dim=0, keepdim=False))
 
         return torch.stack(fts_means), np.array(labels)  # [self.n_known + len(self.selected_classes), feature_dimension]
+
+
+    def preserve_image(self, epoch, embeddings, targets, fts_means):
+        root = self.args.train_set
+        classes = os.listdir(root)
+        image_dest, embedding_dest = self.mk(epoch, classes)
+        for i, label in enumerate(sorted(set(targets))):
+            condition = np.where(targets == label)[0]
+            features = embeddings[condition]
+            # center_image_embedding = min(features, key=lambda x: (x - fts_means[i]).pow(2).sum(0))
+            # center_image_position = torch.argmax((features == center_image_embedding),dim=0,keepdim=False).item()
+            # second_image_embedding = max(features, key=lambda x: (x - center_image_embedding).pow(2).sum(0))
+            # second_image_position = torch.argmax((features == second_image_embedding),dim=0,keepdim=False).item()
+            # third_image_embedding = max(features, key=lambda x: (x - second_image_embedding).pow(2).sum(0))
+            # third_image_position = torch.argmax((features == third_image_embedding), dim=0, keepdim=False).item()
+
+            images = random.sample(range(features.size(0)), k=self.args.k) # select 20 images to preserve
+            class_dir = os.path.join(root, classes[i])
+            file = os.listdir(class_dir)  # get all images name
+
+            class_dest = os.path.join(image_dest, classes[i])
+
+            embedding_file = open(os.path.join(embedding_dest, classes[i] + '.csv'), 'w+')
+
+            for image in sorted(images):
+                image_path = os.path.join(class_dir, file[image])
+                shutil.copyfile(image_path, class_dest)
+
+                for ii in features[image]:
+                    embedding_file.write(str(ii.item())+',')
+                embedding_file.write('\n')
+
+            embedding_file.close()
+
+
+    def mk(self, epoch, classes ):
+        image_dest = self.save_path['path_images']
+        embedding_dest = self.save_path['path_ebd']
+        image_dest = os.path.join(image_dest, str(epoch))
+        if not os.path.exists(image_dest):
+            os.mkdir(image_dest)
+        embedding_dest = os.path.join(embedding_dest, str(epoch))
+        if not os.path.exists(embedding_dest):
+            os.mkdir(embedding_dest)
+        for c in classes:
+            class_dest = os.path.join(image_dest, c)
+            if not os.path.exists(class_dest):
+                os.mkdir(class_dest)
+        return image_dest, embedding_dest
+
 
     def knn(self, ft, embeddings, targets, k_vote):
         '''
