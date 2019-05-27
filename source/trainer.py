@@ -11,7 +11,7 @@ import shutil
 from sklearn import neighbors
 class Trainer():
     def __init__(self, args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model,
-                 sampler_train_loader_old, criterion, writer, file_writer, save_path, classes):
+                 preserved, sampler_train_loader_old, criterion, writer, file_writer, save_path, classes):
         self.args                 = args
         self.optimizer            = optimizer
         self.scheduler            = scheduler
@@ -25,8 +25,12 @@ class Trainer():
         self.save_path            = save_path
         self.classes              = classes
         self.sampler_train_loader_old = sampler_train_loader_old
+        self.increment            = args.increment
+        if self.increment :
+            self.means = preserved['fts_means']
+            self.preserved_embedding = preserved['preserved_embedding']
 
-        # Get valid labels for plotting confusion matirx
+        # Get valid labels for plotting confusion matrix
         valid_lbls = []
         for _, (_, lbls) in enumerate(self.test_loader):
             valid_lbls.extend(lbls.cpu().data.numpy() if lbls.is_cuda else lbls.data.numpy())
@@ -34,12 +38,16 @@ class Trainer():
 
     def run(self):
         start_time = datetime.datetime.now()
-        best_accy, best_epoch, fts_means= 0., 0, None
+        best_acc, best_epoch, fts_means= 0., 0, None
         for epoch in range(1, self.args.epoch+1):
             if self.scheduler is not None:
                 self.scheduler.step()
-            # train_loss = self.train(epoch=epoch, model=self.model,criterion=self.criterion,
-            #                   optimizer=self.optimizer,loader=self.sampler_train_loader)
+            if self.increment:
+                train_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
+                              optimizer=self.optimizer, new_loader=self.sampler_train_loader, old_loader=self.sampler_train_loader_old)
+            else:
+                train_loss = self.train(epoch=epoch, model=self.model,criterion=self.criterion,
+                              optimizer=self.optimizer,loader=self.sampler_train_loader)
 
 
             if epoch % 4 == 0:
@@ -52,7 +60,6 @@ class Trainer():
                     benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
                 embeddings, targets = benchmark  # from training set [n, feature_dimension]
                 fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [n, feature_dimension], [n]
-
 
 
                 clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
@@ -72,21 +79,19 @@ class Trainer():
                                                                 clf_knn=clf_knn,
                                                                 clf_ncm=clf_ncm)
 
-                if (train_accy[1] >= 0.098 and valid_accy[1] >= best_accy) or epoch == self.args.epoch :
-                    best_accy = max(best_accy, valid_accy[1])
-                    preservered_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
-                    print(preservered_embedding.shape)
-                    sys.exit(2)
+                if (train_accy[1] >= 0.96 and valid_accy[1] >= best_acc) or epoch == self.args.epoch :
+                    best_acc = max(best_acc, valid_accy[1])
                     best_epoch = epoch
-                    self.save_model(epoch, fts_means, preservered_embedding)
+                    preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
+                    self.save_model(epoch, fts_means, preserved_embedding)
 
                 self.log(epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls)
 
 
             end_time = datetime.datetime.now()
             secs = (end_time - start_time).seconds
-            self.f.write('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_accy, best_epoch, int(secs / 60)))
-            print('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_accy, best_epoch, int(secs / 60)))
+            self.f.write('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_acc, best_epoch, int(secs / 60)))
+            print('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_acc, best_epoch, int(secs / 60)))
 
 
 
@@ -109,7 +114,7 @@ class Trainer():
                 triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
             else:
                 triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
-            loss = triplet_loss
+            loss = triplet_loss + pairwise_term * 0.5
             losses.update(loss.item())
             optimizer.zero_grad()
             loss.backward()
@@ -124,6 +129,80 @@ class Trainer():
                     # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
                 #     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
                 info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f}'.format(epoch, step, len(loader), losses.avg)
+                self.f.write(info + '\r\n')
+                print(info)
+
+        return losses.avg
+
+
+    def train_increment(self, epoch, model, criterion, optimizer, new_loader, old_loader):
+        losses = AverageMeter()
+        model.train()
+        for step, (images, labels) in enumerate(old_loader):
+            # print(labels)
+            if torch.cuda.is_available() :
+                images, labels = images.cuda(), labels.cuda()
+
+            # Extract features
+            embeddings = model(images)
+            anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+
+            # Loss
+            # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
+            # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
+            if self.args.method == 'semihard':
+                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
+            else:
+                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
+            loss = triplet_loss + pairwise_term * 0.5
+            losses.update(loss.item())
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            if step % 4 ==0:
+                s = str(ap)+'   '+str(an)
+                print(s)
+                self.f.write(s+'\r\n')
+
+            if (step+1) % 25 == 0:
+                    # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
+                #     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
+                info = 'Epoch: {} Step: {}/{}| Old data set | Train_loss: {:.3f}'.format(epoch, step, len(old_loader), losses.avg)
+                self.f.write(info + '\r\n')
+                print(info)
+
+
+        for step, (images, labels) in enumerate(new_loader):
+            # print(labels)
+            if torch.cuda.is_available() :
+                images, labels = images.cuda(), labels.cuda()
+
+            # Extract features
+            embeddings = model(images)
+            anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+
+            # Loss
+            # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
+            # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
+            if self.args.method == 'semihard':
+                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
+            else:
+                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
+            loss = triplet_loss + pairwise_term * 0.5
+            losses.update(loss.item())
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if step % 4 ==0:
+                s = str(ap)+'   '+str(an)
+                print(s)
+                self.f.write(s+'\r\n')
+
+            if (step+1) % 25 == 0:
+                    # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
+                #     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
+                info = 'Epoch: {} Step: {}/{} | New data set | Train_loss: {:.3f}'.format(epoch, step, len(new_loader), losses.avg)
                 self.f.write(info + '\r\n')
                 print(info)
 
@@ -226,10 +305,10 @@ class Trainer():
     def preserve_image(self, epoch, embeddings, targets, fts_means, classes):
         root = self.args.train_set
         image_dest = self.mk(epoch, classes)
-        preservered_embedding = []
+        preserved_embedding = []
+
         for i, label in enumerate(sorted(set(targets))):
-            print(i, label)
-            condition = np.where(targets == label)[0]
+            condition = sorted(np.where(targets == label)[0])
 
             features = embeddings[condition]
             # center_image_embedding = min(features, key=lambda x: (x - fts_means[i]).pow(2).sum(0))
@@ -239,21 +318,21 @@ class Trainer():
             # third_image_embedding = max(features, key=lambda x: (x - second_image_embedding).pow(2).sum(0))
             # third_image_position = torch.argmax((features == third_image_embedding), dim=0, keepdim=False).item()
 
-            images = random.sample(range(features.size(0)), k=self.args.k) # select 20 images to preserve
+            images = sorted(random.sample(range(features.size(0)), k=self.args.k)) # select 20 images to preserve
+            embedding = features[images]
+            preserved_embedding.append(embedding)
+
 
             class_dir = os.path.join(root, classes[i])
             file = sorted(os.listdir(class_dir))  # get all images name
 
+
             class_dest = os.path.join(image_dest, classes[i])
-
-            embedding = features[images]
-
-            for image in sorted(images):
+            for image in images:
                 image_path = os.path.join(class_dir, file[image])
                 shutil.copyfile(image_path, class_dest+str(image)+'.png')
-            preservered_embedding.append(embedding)
 
-        return torch.stack(preservered_embedding)
+        return torch.stack(preserved_embedding)
 
 
     def mk(self, epoch, classes):
@@ -374,14 +453,14 @@ class Trainer():
                                 save_dir=save_dir)
 
 
-    def save_model(self, epoch, fts_means, preservered_embedding):
+    def save_model(self, epoch, fts_means, preserved_embedding):
         if epoch == self.args.epoch:
             state_best = {
                 'epoch': epoch,
                 'model': self.model,
                 'state_dict': self.model.state_dict(),
                 'fts_means': fts_means,
-                'embeddings': preservered_embedding
+                'embeddings': preserved_embedding
             }
             torch.save(state_best,
                        os.path.join(self.save_path['path_pkl'], 'state_best.pth'))
@@ -391,6 +470,6 @@ class Trainer():
                 'model': self.model,
                 'state_dict': self.model.state_dict(),
                 'fts_means': fts_means,
-                'embeddings': preservered_embedding
+                'embeddings': preserved_embedding
             }
             torch.save(state_current, os.path.join(self.save_path['path_pkl'], 'state_current.pth'))

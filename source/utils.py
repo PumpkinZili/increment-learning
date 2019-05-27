@@ -421,6 +421,7 @@ def printConfig(args,f, optimizer):
     print("data_augmentation: {}".format(args.data_augmentation))
     print("batch_n_classes: {}".format(args.batch_n_classes))
     print("batch_n_num: {}".format(args.batch_n_num))
+    print("increment: {}".format(args.increment))
     print("optimizer: {}".format(optimizer))
 
     f.write("train dataset:{}".format(args.train_set) + '\r\n')
@@ -436,6 +437,7 @@ def printConfig(args,f, optimizer):
     f.write("data_augmentation: {}".format(args.data_augmentation) + '\r\n')
     f.write("batch_n_classes: {}".format(args.batch_n_classes) + '\r\n')
     f.write("batch_n_num: {}".format(args.batch_n_num) + '\r\n')
+    f.write("increment: {}".format(args.increment) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
 
 

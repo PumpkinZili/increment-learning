@@ -147,7 +147,10 @@ class SpecificDataset(object):
         self.test_dataset_fc.dataset_name = self.dataset_name
 
         if self.args.increment :
-            train_set_old = os.path.join(self.args.train_set_old, 'images')
+            train_set_old = os.path.join(self.args.train_set_old, 'images', 'best')
+            if not os.path.exists(train_set_old):
+                print(train_set_old+'is not exists!!!')
+                raise NotADirectoryError
             self.train_dataset_old = torchvision.datasets.ImageFolder(train_set_old, transform=train_transform)
             self.train_dataset_old.train = True
             self.train_dataset_old.data, self.train_dataset_old.targets = self.tuple2list(self.train_dataset_old)

@@ -1,5 +1,8 @@
 import argparse
 import os
+from dataset import SpecificDataset, SampledDataset, BatchSampler
+import torch
+from model import EmbeddingNet
 def arg():
     parser = argparse.ArgumentParser(description='Classifiar using triplet loss.')
     parser.add_argument('--CVDs', type=str, default='7', metavar='CUDA_VISIBLE_DEVICES',
@@ -154,4 +157,48 @@ def getArgs():
     return args
 
 
+def get_model(args):
+    model, preserved = None, None
+    if args.increment == 0:
+        model = EmbeddingNet(network = args.model_name, pretrained=args.is_pretrained, embedding_len=args.embedding_size)
+    elif args.increment == 1:
+        try:
+            pkl = torch.load(args.train_set_old+'/pkl/state_best.pth')
+            model = pkl['model']
+            preserved = {'fts_means': pkl['fts_means'],
+                'preserved_embedding': pkl['embeddings']}
+        except OSError as reason:
+            print(args.train_set_old+'.........')
+            print(reason)
+    else:
+        print(args.increment)
+        raise NotImplementedError
 
+    return model, preserved
+
+
+def get_dataloader(args):
+    dataset = SpecificDataset(args, data_augmentation=args.data_augmentation)
+    classes = dataset.classes
+
+    train_dataset = SampledDataset(dataset.train_dataset, dataset.channels, args.amount)
+    print('Train data has {}'.format(len(train_dataset)))
+
+    test_dataset = SampledDataset(dataset.test_dataset, dataset.channels, args.amount)
+    print('Validation data has {}'.format(len(test_dataset)))
+
+    kwargs = {'num_workers': 8, 'pin_memory': False}
+    batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
+    # batch_sampler = LimitedBatchSampler(train_dataset, 10, args.batch_n_num, args.batch_n_classes)
+
+    sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=batch_sampler, **kwargs)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
+
+    if args.increment:
+        train_dataset_old = SampledDataset(dataset.train_dataset_old, dataset.channels, args.amount)
+        sampler_train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_sampler=batch_sampler, **kwargs)
+    else:
+        sampler_train_loader_old = None
+
+    return sampler_train_loader, train_loader, test_loader, sampler_train_loader_old, classes
