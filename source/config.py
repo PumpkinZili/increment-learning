@@ -1,7 +1,9 @@
 import argparse
 import os
 from dataset import SpecificDataset, SampledDataset, BatchSampler
+from utils import TripletLoss, TripletLossV2
 import torch
+from torch.optim import lr_scheduler
 from model import EmbeddingNet
 def arg():
     parser = argparse.ArgumentParser(description='Classifiar using triplet loss.')
@@ -60,6 +62,8 @@ def arg():
                         help='Dropout probability (default: 0.2)')
     parser.add_argument('--check-path', type=str, default='/home/zili/memory/FaceRecognition-master/checkpoints',
                         metavar='folder', help='Checkpoint path')
+    parser.add_argument('--comment', type=str, default='',
+                        metavar='string', help='comment for current train')
     parser.add_argument('--method', type=str, default='batchhard', metavar='R',
                         help='method of sample, batchhard, batchall, batchrandom')
     parser.add_argument('--is-pretrained', type=bool, default=False, metavar='R',
@@ -93,7 +97,8 @@ def adjustedArgs(args):
             raise NotImplementedError
         args.check_path = '/share/zili/code/checkpoints'
 
-    if args.server == 16:
+
+    elif args.server == 16:
         if args.dataset == 'cifar100_10':
             args.train_set = '/data0/zili/code/data/cifar100/train'
             if args.increment == 1:
@@ -114,7 +119,8 @@ def adjustedArgs(args):
             raise NotImplementedError
         args.check_path = '/data0/zili/code/checkpoints'
 
-    if args.server == 17:
+
+    elif args.server == 17:
         if args.dataset == 'cifar100_10':
             args.train_set = '/data/jiaxin/zili/data/cifar100/train2'
             args.test_set = '/data/jiaxin/zili/data/cifar100/test'
@@ -128,7 +134,9 @@ def adjustedArgs(args):
             print(args.dataset)
             raise NotImplementedError
         args.check_path = '/data/jiaxin/zili/checkpoints'
-    if args.server == 15:
+
+
+    elif args.server == 15:
         if args.dataset == 'cifar100_10':
             args.train_set = '/home/zili/code/data/cifar100/train'
             if args.increment == 1:
@@ -147,11 +155,16 @@ def adjustedArgs(args):
         else:
             print(args.dataset)
             raise NotImplementedError
-        args.check_path = '/home/zili/code/checkpoints'
+        args.check_path = '/data0/share/zili/checkpoints'
+
+    else:
+        print(args.server,'Not server')
+        raise EnvironmentError
+
     return args
 
 
-def getArgs():
+def get_args():
     args = arg()
     args = adjustedArgs(args)
     return args
@@ -177,6 +190,15 @@ def get_model(args):
     return model, preserved
 
 
+def get_osc(args, model):
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
+    scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
+    # criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
+    criterion = TripletLossV2(margin=args.margin)
+
+    return optimizer, scheduler, criterion
+
+
 def get_dataloader(args):
     dataset = SpecificDataset(args, data_augmentation=args.data_augmentation)
     classes = dataset.classes
@@ -198,7 +220,9 @@ def get_dataloader(args):
     if args.increment:
         train_dataset_old = SampledDataset(dataset.train_dataset_old, dataset.channels, args.amount)
         sampler_train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_sampler=batch_sampler, **kwargs)
+        train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_size=args.test_batch_size, shuffle=False, **kwargs)
     else:
+        train_loader_old = None
         sampler_train_loader_old = None
 
-    return sampler_train_loader, train_loader, test_loader, sampler_train_loader_old, classes
+    return sampler_train_loader, train_loader, test_loader, sampler_train_loader_old, train_loader_old, classes

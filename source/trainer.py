@@ -11,7 +11,7 @@ import shutil
 from sklearn import neighbors
 class Trainer():
     def __init__(self, args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model,
-                 preserved, sampler_train_loader_old, criterion, writer, file_writer, save_path, classes):
+                 preserved, sampler_train_loader_old, train_loader_old, criterion, writer, file_writer, save_path, classes):
         self.args                 = args
         self.optimizer            = optimizer
         self.scheduler            = scheduler
@@ -25,7 +25,9 @@ class Trainer():
         self.save_path            = save_path
         self.classes              = classes
         self.sampler_train_loader_old = sampler_train_loader_old
+        self.train_loader_old     = train_loader_old
         self.increment            = args.increment
+
         if self.increment :
             self.means = preserved['fts_means']
             self.preserved_embedding = preserved['preserved_embedding']
@@ -42,6 +44,8 @@ class Trainer():
         for epoch in range(1, self.args.epoch+1):
             if self.scheduler is not None:
                 self.scheduler.step()
+
+
             if self.increment:
                 train_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer, new_loader=self.sampler_train_loader, old_loader=self.sampler_train_loader_old)
@@ -49,13 +53,11 @@ class Trainer():
                 train_loss = self.train(epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
-
-            if epoch % 4 == 0:
+            validate_start = datetime.datetime.now()
+            if epoch % 4 == 0 and self.increment == 0:
                 printConfig(self.args, self.f, self.optimizer)
 
                 # Validate
-                validate_start = datetime.datetime.now()
-
                 with torch.no_grad():
                     benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
                 embeddings, targets = benchmark  # from training set [n, feature_dimension]
@@ -86,6 +88,11 @@ class Trainer():
                     self.save_model(epoch, fts_means, preserved_embedding)
 
                 self.log(epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls)
+
+
+            if epoch % 4 == 0 and self.increment > 0:
+                printConfig(self.args, self.f, self.optimizer)
+                # TODO
 
 
             end_time = datetime.datetime.now()

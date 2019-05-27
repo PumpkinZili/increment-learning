@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from os import mkdir
 import itertools
 import matplotlib.pyplot as plt
+from tensorboardX import  SummaryWriter
 plt.switch_backend('agg')
 
 def l1_norm(vectors):
@@ -355,21 +356,15 @@ class AverageMeter(object):
 
 
 def makedir(args):
-    now_time = str(datetime.datetime.now())
-    if args.increment == 1:
-        now_time = '1_' + now_time
-    if args.increment == 2:
-        now_time = '2_' + now_time
-    if args.increment == 3:
-        now_time = '3_' + now_time
-    if args.increment == 4:
-        now_time = '4_' + now_time
+    current_time = datetime.datetime.now().strftime('%b%d_%H-%M-%S')
+    if args.increment:
+        current_time = str(args.increment) + '_' + current_time
     if not os.path.exists(args.check_path):
         mkdir(args.check_path)
-    args.check_path = os.path.join(args.check_path, now_time)
+    args.check_path = os.path.join(args.check_path, current_time)
     if not os.path.exists(args.check_path):
         mkdir(args.check_path)
-    save_path = init_path(args)
+    save_path = init_path(args, current_time)
     shutil.copy('config.py', save_path['path_source'])
     shutil.copy('trainer.py', save_path['path_source'])
     shutil.copy('dataset.py', save_path['path_source'])
@@ -377,16 +372,17 @@ def makedir(args):
     shutil.copy('model.py', save_path['path_source'])
     shutil.copy('utils.py', save_path['path_source'])
 
-    output1 = 'main_' + now_time
+    output1 = 'main_' + current_time
     f = open(args.check_path + os.path.sep + output1 + '.txt', 'w+')
-    return now_time, f, save_path
+    writer = SummaryWriter(log_dir=save_path['path_runs'])
+    return current_time, f, save_path, writer
 
 
-def init_path(args):
+def init_path(args, current_time):
     path_cm = os.path.join(args.check_path, 'confusion_matrix')
     path_tsne = os.path.join(args.check_path, 'tsne')
     path_ebd = os.path.join(args.check_path, 'embeddings')
-    path_log = os.path.join(args.check_path, 'log')
+    path_runs = os.path.join(args.check_path, current_time)
     path_pkl = os.path.join(args.check_path, 'pkl')
     path_sparsity = os.path.join(args.check_path, 'sparsity')
     path_state_tsne = os.path.join(args.check_path, 'state_tsne')
@@ -395,13 +391,13 @@ def init_path(args):
     mkdir(path_cm)
     mkdir(path_tsne)
     mkdir(path_ebd)
-    mkdir(path_log)
+    mkdir(path_runs)
     mkdir(path_pkl)
     mkdir(path_sparsity)
     mkdir(path_state_tsne)
     mkdir(path_source)
     mkdir(path_images)
-    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_ebd':path_ebd, 'path_log':path_log,
+    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_ebd':path_ebd, 'path_runs':path_runs,
                  'path_pkl':path_pkl, 'path_sparsity':path_sparsity, 'path_state_tsne':path_state_tsne,
                  'path_source':path_source, 'path_images':path_images}
     return save_path
