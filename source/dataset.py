@@ -58,13 +58,6 @@ class SpecificDataset(object):
             transforms.ToTensor(),
             transforms.Normalize((self.mean,), (self.std,))])
 
-        if self.args.server == 16:
-            path_train = '/data0/zili/code/triplet/data/mnist/train'
-            path_test = '/data0/zili/code/triplet/data/test_class'
-        elif self.args.server == 15:
-            path_train = '/home/zili/code/triplet/data/mnist/train'
-            path_test = '/home/zili/code/triplet/data/test_class'
-
         self.train_dataset = torchvision.datasets.ImageFolder(path_train, transform=train_transform)
         self.train_dataset.train = True
         self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)
@@ -96,11 +89,6 @@ class SpecificDataset(object):
             transforms.Normalize(self.mean,
                                  self.std)])
 
-        if self.args.server == 16:
-            path_train = '/data0/zili/code/triplet/data/cifar'
-            path_test = '/data0/zili/code/triplet/data/cifar_test'
-        elif self.args.server == 15:
-            raise NotImplementedError
 
         self.train_dataset = torchvision.datasets.ImageFolder(path_train, transform=train_transform)
         self.train_dataset.train = True
@@ -143,12 +131,7 @@ class SpecificDataset(object):
             transforms.ToTensor(),
             transforms.Normalize(self.mean, self.std)
         ])
-        if self.args.server == 16:
-            path_train = '/data0/zili/code/data/cifar100/train'
-            path_test = '/data0/zili/code/data/cifar100/test'
-        elif self.args.server == 15:
-            path_train = '/home/zili/code/data/cifar100/train'
-            path_test = '/home/zili/code/data/cifar100/test'
+
         self.train_dataset = torchvision.datasets.ImageFolder(self.args.train_set, transform=train_transform)
         self.train_dataset.train = True
         self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)

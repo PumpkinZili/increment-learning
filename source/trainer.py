@@ -32,7 +32,7 @@ class Trainer():
 
     def run(self):
         start_time = datetime.datetime.now()
-        best_accy =0.
+        best_accy, best_epoch, fts_means= 0., 0, None
         for epoch in range(1, self.args.epoch+1):
             if self.scheduler is not None:
                 self.scheduler.step()
@@ -50,7 +50,7 @@ class Trainer():
                     benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
                 embeddings, targets = benchmark  # from training set [n, feature_dimension]
                 fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [n, feature_dimension], [n]
-                self.preserve_image(epoch,embeddings,targets,fts_means)
+                self.preserve_image(epoch,embeddings,targets,fts_means, self.classes)
 
                 clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
                 clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
@@ -81,8 +81,9 @@ class Trainer():
                 self.writer.add_scalar(tag='Valid accy(KNN)', scalar_value=valid_accy[0], global_step=epoch)
                 self.writer.add_scalar(tag='Valid accy(NCM)', scalar_value=valid_accy[1], global_step=epoch)
                 best_accy = max(best_accy, valid_accy[1])
-                if train_accy[1] >= 0.98 and valid_accy[1] >= best_accy:  # save the best state
 
+                if train_accy[1] >= 0.98 and valid_accy[1] >= best_accy:  # save the best state
+                    best_epoch = epoch
                     state_best = {
                         'epoch': epoch,
                         'model': self.model,
@@ -92,61 +93,60 @@ class Trainer():
                     torch.save(state_best,
                                os.path.join(self.save_path['path_pkl'], 'state_best.pth'))
 
-                if epoch % 8 == 0:
-                    print('Saving...\n')
-                    # Confusion ##########################################################################
-                    confusion = confusion_matrix(y_true=self.valid_lbls,
-                                                 y_pred=pred_lbls)
-                    plot_confusion_matrix(cm=confusion,
-                                          classes=self.classes,
-                                          save_path=os.path.join(self.save_path['path_cm'], 'cm_{}.png'.format(epoch)))
+
+                print('Saving...\n')
+                # Confusion ##########################################################################
+                confusion = confusion_matrix(y_true=self.valid_lbls,
+                                             y_pred=pred_lbls)
+                plot_confusion_matrix(cm=confusion,
+                                      classes=self.classes,
+                                      save_path=os.path.join(self.save_path['path_cm'], 'cm_{}.png'.format(epoch)))
 
 
-                    # train set  ##############################################################################
-                    with torch.no_grad():
-                        benchmark = self.getEmbeddings(model=self.model, loader=self.train_loader)
-                    all_train_fts, all_train_lbls = benchmark
-                    self.writer.add_embedding(global_step=epoch, mat=all_train_fts, metadata=all_train_lbls)
+                # train set  ##############################################################################
+                with torch.no_grad():
+                    benchmark = self.getEmbeddings(model=self.model, loader=self.train_loader)
+                all_train_fts, all_train_lbls = benchmark
+                self.writer.add_embedding(global_step=epoch, mat=all_train_fts, metadata=all_train_lbls)
 
 
-                    # test set ##############################################################################
-                    with torch.no_grad():
-                        benchmark = self.getEmbeddings(model=self.model, loader=self.test_loader)
-                    all_test_fts, all_test_lbls = benchmark
-                    self.writer.add_embedding(global_step=epoch+1000, mat=all_test_fts, metadata=all_test_lbls)
+                # test set ##############################################################################
+                with torch.no_grad():
+                    benchmark = self.getEmbeddings(model=self.model, loader=self.test_loader)
+                all_test_fts, all_test_lbls = benchmark
+                self.writer.add_embedding(global_step=epoch+1000, mat=all_test_fts, metadata=all_test_lbls)
 
 
-                    # train+test ##############################################################################
-                    all_fts = torch.cat((all_train_fts,all_test_fts))
-                    all_lbls = torch.cat((all_train_lbls,all_test_lbls))
-                    self.writer.add_embedding(global_step=epoch+2000, mat=all_fts, metadata=all_lbls)
+                # train+test ##############################################################################
+                all_fts = torch.cat((all_train_fts,all_test_fts))
+                all_lbls = torch.cat((all_train_lbls,all_test_lbls))
+                self.writer.add_embedding(global_step=epoch+2000, mat=all_fts, metadata=all_lbls)
 
 
-                    # Sparsity  ##########################################################################
-                    fts_means = fts_means.cpu().data.numpy() if fts_means.is_cuda else fts_means.data.numpy()
-                    save_dir = os.path.join(self.save_path['path_sparsity'], '{}'.format(epoch))
-                    # makedirs(save_dir)  # make directory for histograms
-                    if not os.path.exists(save_dir):
-                        os.makedirs(save_dir)
-                    plot_sparsity_histogram(features=fts_means,
-                                            idx_to_name=self.classes,
-                                            save_dir=save_dir)
+                # Sparsity  ##########################################################################
+                fts_means = fts_means.cpu().data.numpy() if fts_means.is_cuda else fts_means.data.numpy()
+                save_dir = os.path.join(self.save_path['path_sparsity'], '{}'.format(epoch))
+                # makedirs(save_dir)  # make directory for histograms
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir)
+                plot_sparsity_histogram(features=fts_means,
+                                        idx_to_name=self.classes,
+                                        save_dir=save_dir)
 
 
-                    # Save ##############################################################################
-                    state_current = {
-                        'phase': self.classes,
-                        'epoch': epoch,
-                        'model': self.model,
-                        'state_dict': self.model.state_dict(),
-                        'fts_means': fts_means,
-                    }
-                    torch.save(state_current,
-                               os.path.join(self.save_path['path_pkl'], 'state_current.pth'))
             end_time = datetime.datetime.now()
             secs = (end_time - start_time).seconds
-            self.f.write('Best accy: {:.4f}, Time comsumed: {}mins'.format(best_accy, int(secs / 60)))
-            print('Best accy: {:.4f}, Time comsumed: {}mins'.format(best_accy, int(secs / 60)))
+            self.f.write('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_accy, best_epoch, int(secs / 60)))
+            print('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_accy, best_epoch, int(secs / 60)))
+        # Save ##############################################################################
+        state_current = {
+            'phase': self.classes,
+            'epoch': self.args.epoch,
+            'model': self.model,
+            'state_dict': self.model.state_dict(),
+            'fts_means': fts_means,
+        }
+        torch.save(state_current, os.path.join(self.save_path['path_pkl'], 'state_current.pth'))
 
 
     def train(self, epoch, model, criterion, optimizer, loader):
@@ -279,12 +279,13 @@ class Trainer():
         return torch.stack(fts_means), np.array(labels)  # [self.n_known + len(self.selected_classes), feature_dimension]
 
 
-    def preserve_image(self, epoch, embeddings, targets, fts_means):
+    def preserve_image(self, epoch, embeddings, targets, fts_means, classes):
         root = self.args.train_set
-        classes = os.listdir(root)
         image_dest, embedding_dest = self.mk(epoch, classes)
         for i, label in enumerate(sorted(set(targets))):
+            print(i, label)
             condition = np.where(targets == label)[0]
+
             features = embeddings[condition]
             # center_image_embedding = min(features, key=lambda x: (x - fts_means[i]).pow(2).sum(0))
             # center_image_position = torch.argmax((features == center_image_embedding),dim=0,keepdim=False).item()
@@ -294,8 +295,9 @@ class Trainer():
             # third_image_position = torch.argmax((features == third_image_embedding), dim=0, keepdim=False).item()
 
             images = random.sample(range(features.size(0)), k=self.args.k) # select 20 images to preserve
+
             class_dir = os.path.join(root, classes[i])
-            file = os.listdir(class_dir)  # get all images name
+            file = sorted(os.listdir(class_dir))  # get all images name
 
             class_dest = os.path.join(image_dest, classes[i])
 
@@ -303,7 +305,7 @@ class Trainer():
 
             for image in sorted(images):
                 image_path = os.path.join(class_dir, file[image])
-                shutil.copyfile(image_path, class_dest)
+                shutil.copyfile(image_path, class_dest+str(image)+'.png')
 
                 for ii in features[image]:
                     embedding_file.write(str(ii.item())+',')

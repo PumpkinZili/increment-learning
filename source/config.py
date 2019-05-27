@@ -59,6 +59,8 @@ def arg():
                         help='method of sample, batchhard, batchall, batchrandom')
     parser.add_argument('--is-pretrained', type=bool, default=False, metavar='R',
                         help='whether model is pretrained.')
+    parser.add_argument('--increment', type=int, default=0, metavar='R',
+                        help='which step in increment precess.')
     parser.add_argument('--data_augmentation', type=bool, default=False, metavar='R',
                         help='whether data_augmentation.')
     args = parser.parse_args()
@@ -68,12 +70,18 @@ def adjustedArgs(args):
     if args.server == 31:
         if args.dataset == 'cifar100_10':
             args.train_set  = '/share/zili/code/triplet/data/cifar100/train2'
+            if args.increment == 1:
+                args.train_set = '/share/zili/code/triplet/data/cifar100/increment'
             args.test_set   = '/share/zili/code/triplet/data/cifar100/test2'
-        if args.dataset == 'cifar10':
+        elif args.dataset == 'cifar10':
             args.train_set = '/share/zili/code/triplet/data/cifar10/train2'
+            if args.increment == 1:
+                args.train_set = '/share/zili/code/triplet/data/cifar10/increment'
             args.test_set = '/share/zili/code/triplet/data/cifar10/test2'
         elif args.dataset == 'mnist':
             args.train_set = '/share/zili/code/triplet/data/mnist/train'
+            if args.increment == 1:
+                args.train_set = '/share/zili/code/triplet/data/mnist/increment'
             args.test_set = '/share/zili/code/triplet/data/mnist/test'
         else:
             print(args.dataset)
@@ -83,13 +91,19 @@ def adjustedArgs(args):
     if args.server == 16:
         if args.dataset == 'cifar100_10':
             args.train_set = '/data0/zili/code/data/cifar100/train'
-            args.test_set = '/data0/zili/code/triplet/data/cifar100/test'
-        if args.dataset == 'cifar10':
+            if args.increment == 1:
+                args.train_set = '/data0/zili/code/data/cifar100/increment'
+            args.test_set = '/data0/zili/code/data/cifar100/test'
+        elif args.dataset == 'cifar10':
             args.train_set = '/data0/zili/code/data/cifar10/train'
+            if args.increment == 1:
+                args.train_set = '/data0/zili/code/data/cifar10/increment'
             args.test_set = '/data0/zili/code/data/cifar10/test'
         elif args.dataset == 'mnist':
-            args.train_set = '/data0/zili/code/triplet/data/mnist/train'
-            args.test_set = '/data0/zili/code/triplet/data/mnist/test'
+            args.train_set = '/data0/zili/code/data/mnist/train'
+            if args.increment == 1:
+                args.train_set = '/data0/zili/code/data/mnist/increment'
+            args.test_set = '/data0/zili/code/data/mnist/test'
         else:
             print(args.dataset)
             raise NotImplementedError
@@ -99,7 +113,7 @@ def adjustedArgs(args):
         if args.dataset == 'cifar100_10':
             args.train_set = '/data/jiaxin/zili/data/cifar100/train2'
             args.test_set = '/data/jiaxin/zili/data/cifar100/test'
-        if args.dataset == 'cifar10':
+        elif args.dataset == 'cifar10':
             args.train_set = '/home/zili/code/data/cifar10/train'
             args.test_set = '/home/zili/code/data/cifar10/test'
         elif args.dataset == 'mnist':
@@ -112,13 +126,19 @@ def adjustedArgs(args):
     if args.server == 15:
         if args.dataset == 'cifar100_10':
             args.train_set = '/home/zili/code/data/cifar100/train'
+            if args.increment == 1:
+                args.train_set = '/home/zili/code/data/cifar100/increment'
             args.test_set = '/home/zili/code/data/cifar100/test'
-        if args.dataset == 'cifar10':
+        elif args.dataset == 'cifar10':
             args.train_set = '/home/zili/code/data/cifar10/train'
+            if args.increment == 1:
+                args.train_set = '/home/zili/code/data/cifar10/increment'
             args.test_set = '/home/zili/code/data/cifar10/test'
         elif args.dataset == 'mnist':
-            args.train_set = '/home/zili/code/triplet/data/mnist/train'
-            args.test_set = '/home/zili/code/triplet/data/mnist/test'
+            args.train_set = '/home/zili/code/data/mnist/train'
+            if args.increment == 1:
+                args.train_set = '/home/zili/code/data/mnist/increment'
+            args.test_set = '/home/zili/code/data/mnist/test'
         else:
             print(args.dataset)
             raise NotImplementedError

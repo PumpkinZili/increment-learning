@@ -19,6 +19,8 @@ def main():
     writer = SummaryWriter()
 
     model = EmbeddingNet(network = args.model_name, pretrained=args.is_pretrained, embedding_len=args.embedding_size)
+    pkl = torch.load('/data0/zili/code/checkpoints/2019-05-26 23:25:58.449965/pkl/state_best.pth')
+    model = pkl['model']
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
 
@@ -45,7 +47,7 @@ def main():
                                               batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
     if torch.cuda.is_available():
-        model = torch.nn.DataParallel(model).cuda()
+        model = model.cuda()
         cudnn.benchmark = True
     # print(args.method)
     # criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
