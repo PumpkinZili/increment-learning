@@ -8,6 +8,8 @@ def arg():
                         help='which server is being used')
     parser.add_argument('--train-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/train2',
                         metavar='dir', help='path of train set.')
+    parser.add_argument('--train-set-old', type=str, default=None,
+                        metavar='dir', help='path of old train set.')
     parser.add_argument('--test-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/test2',
                         metavar='dir', help='path of test set.')
     parser.add_argument('--train-set-csv', type=str,
