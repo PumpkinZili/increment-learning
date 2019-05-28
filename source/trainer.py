@@ -50,7 +50,7 @@ class Trainer():
                 train_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer, new_loader=self.sampler_train_loader, old_loader=self.sampler_train_loader_old)
             else:
-                train_loss = self.train(epoch=epoch, model=self.model,criterion=self.criterion,
+                train_loss = self.train(pairwise=self.args.pairwise,epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
             validate_start = datetime.datetime.now()
@@ -92,7 +92,7 @@ class Trainer():
 
             if epoch % 4 == 0 and self.increment > 0:
                 printConfig(self.args, self.f, self.optimizer)
-                # TODO
+
 
 
             end_time = datetime.datetime.now()
@@ -102,7 +102,7 @@ class Trainer():
 
 
 
-    def train(self, epoch, model, criterion, optimizer, loader):
+    def train(self, pairwise, epoch, model, criterion, optimizer, loader):
         losses = AverageMeter()
         model.train()
         for step, (images, labels) in enumerate(loader):
@@ -121,7 +121,7 @@ class Trainer():
                 triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
             else:
                 triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
-            loss = triplet_loss + pairwise_term * 0.5
+            loss = triplet_loss + pairwise_term * pairwise
             losses.update(loss.item())
             optimizer.zero_grad()
             loss.backward()
@@ -337,7 +337,7 @@ class Trainer():
             class_dest = os.path.join(image_dest, classes[i])
             for image in images:
                 image_path = os.path.join(class_dir, file[image])
-                shutil.copyfile(image_path, class_dest+str(image)+'.png')
+                shutil.copy(image_path, class_dest)
 
         return torch.stack(preserved_embedding)
 

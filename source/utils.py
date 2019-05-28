@@ -372,7 +372,7 @@ def makedir(args):
     shutil.copy('model.py', save_path['path_source'])
     shutil.copy('utils.py', save_path['path_source'])
 
-    output1 = 'main_' + current_time
+    output1 = 'log_' + current_time
     f = open(args.check_path + os.path.sep + output1 + '.txt', 'w+')
     writer = SummaryWriter(log_dir=save_path['path_runs'])
     return current_time, f, save_path, writer
@@ -381,7 +381,6 @@ def makedir(args):
 def init_path(args, current_time):
     path_cm = os.path.join(args.check_path, 'confusion_matrix')
     path_tsne = os.path.join(args.check_path, 'tsne')
-    path_ebd = os.path.join(args.check_path, 'embeddings')
     path_runs = os.path.join(args.check_path, current_time)
     path_pkl = os.path.join(args.check_path, 'pkl')
     path_sparsity = os.path.join(args.check_path, 'sparsity')
@@ -390,14 +389,13 @@ def init_path(args, current_time):
     path_images = os.path.join(args.check_path, 'images')
     mkdir(path_cm)
     mkdir(path_tsne)
-    mkdir(path_ebd)
     mkdir(path_runs)
     mkdir(path_pkl)
     mkdir(path_sparsity)
     mkdir(path_state_tsne)
     mkdir(path_source)
     mkdir(path_images)
-    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_ebd':path_ebd, 'path_runs':path_runs,
+    save_path = {'path_cm': path_cm, 'path_tsne': path_tsne, 'path_runs':path_runs,
                  'path_pkl':path_pkl, 'path_sparsity':path_sparsity, 'path_state_tsne':path_state_tsne,
                  'path_source':path_source, 'path_images':path_images}
     return save_path
@@ -418,6 +416,7 @@ def printConfig(args,f, optimizer):
     print("batch_n_classes: {}".format(args.batch_n_classes))
     print("batch_n_num: {}".format(args.batch_n_num))
     print("increment: {}".format(args.increment))
+    print("pairwise: {}".format(args.pairwise))
     print("optimizer: {}".format(optimizer))
 
     f.write("train dataset:{}".format(args.train_set) + '\r\n')
@@ -434,6 +433,7 @@ def printConfig(args,f, optimizer):
     f.write("batch_n_classes: {}".format(args.batch_n_classes) + '\r\n')
     f.write("batch_n_num: {}".format(args.batch_n_num) + '\r\n')
     f.write("increment: {}".format(args.increment) + '\r\n')
+    f.write("pairwise: {}".format(args.pairwise) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
 
 

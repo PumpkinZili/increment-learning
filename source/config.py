@@ -60,6 +60,8 @@ def arg():
                         help='model name (default: cifar_resnet50)')
     parser.add_argument('--dropout-p', type=float, default=0.2, metavar='D',
                         help='Dropout probability (default: 0.2)')
+    parser.add_argument('--pairwise', type=float, default=0.5, metavar='D',
+                        help='weight of pairwise term in loss (default: 0.5)')
     parser.add_argument('--check-path', type=str, default='/home/zili/memory/FaceRecognition-master/checkpoints',
                         metavar='folder', help='Checkpoint path')
     parser.add_argument('--comment', type=str, default='',
