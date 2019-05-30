@@ -68,7 +68,7 @@ def arg():
                         metavar='string', help='comment for current train')
     parser.add_argument('--method', type=str, default='batchhard', metavar='R',
                         help='method of sample, batchhard, batchall, batchrandom')
-    parser.add_argument('--is-pretrained', type=bool, default=False, metavar='R',
+    parser.add_argument('--pretrained', type=bool, default=False, metavar='R',
                         help='whether model is pretrained.')
     parser.add_argument('--increment', type=int, default=0, metavar='R',
                         help='which step in increment precess.')
@@ -175,7 +175,7 @@ def get_args():
 def get_model(args):
     model, preserved = None, None
     if args.increment == 0:
-        model = EmbeddingNet(network = args.model_name, pretrained=args.is_pretrained, embedding_len=args.embedding_size)
+        model = EmbeddingNet(network = args.model_name, pretrained=args.pretrained, embedding_len=args.embedding_size)
     elif args.increment == 1:
         try:
             pkl = torch.load(args.train_set_old+'/pkl/state_best.pth')
