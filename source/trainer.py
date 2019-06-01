@@ -93,7 +93,54 @@ class Trainer():
             if epoch % 4 == 0 and self.increment > 0:
                 printConfig(self.args, self.f, self.optimizer)
 
+                with torch.no_grad():
+                    new_embeddings, new_targets = self.extractEmbeddings(self.model, self.train_loader)
+                    old_embeddings, old_targets = self.extractEmbeddings(self.model, self.train_loader_old)
 
+                ########################################
+                embeddings = torch.cat(new_embeddings, old_embeddings)
+                targets = torch.cat(new_targets, old_targets)
+                fts_means, labels = self.extract_feature_mean(embeddings, targets)
+
+                clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(),
+                                                                                         targets)
+                clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
+
+                #############################################
+                # New Train accuracy
+                new_train_accy, new_train_fts, new_train_lbls = self.validate(args=self.args,
+                                                                  model=self.model,
+                                                                  loader=self.train_loader,
+                                                                  clf_knn=clf_knn,
+                                                                  clf_ncm=clf_ncm)
+
+                # Old train acc
+                old_train_accy, old_train_fts, old_train_lbls = self.validate(args=self.args,
+                                                                  model=self.model,
+                                                                  loader=self.train_loader_old,
+                                                                  clf_knn=clf_knn,
+                                                                  clf_ncm=clf_ncm)
+
+                # Test accuracy
+                valid_accy, pred_fts, pred_lbls = self.validate(args=self.args,
+                                                                model=self.model,
+                                                                loader=self.test_loader,
+                                                                clf_knn=clf_knn,
+                                                                clf_ncm=clf_ncm)
+
+                # if (valid_accy[1] >= best_acc) or epoch == self.args.epoch :
+                #     best_acc = max(best_acc, valid_accy[1])
+                #     best_epoch = epoch
+                    # preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
+                    # self.save_model(epoch, fts_means, preserved_embedding)
+                info = 'Epoch: {}, Train_loss: {:.4f}, New_Train_accy(KNN, NCM): {:.4f}, {:.4f}, ' \
+                        'New_Train_accy(KNN, NCM): {:.4f}, {:.4f},'\
+                       'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
+                    epoch, train_loss, new_train_accy[0], new_train_accy[1],old_train_accy[0],
+                    old_train_accy[1], valid_accy[0], valid_accy[1],
+                    (datetime.datetime.now() - validate_start).seconds)
+                print(info)
+                self.f.write(info + '\r\n')
 
             end_time = datetime.datetime.now()
             secs = (end_time - start_time).seconds
@@ -420,8 +467,6 @@ class Trainer():
         self.writer.add_scalar(tag='Train accy(NCM)', scalar_value=train_accy[1], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(KNN)', scalar_value=valid_accy[0], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(NCM)', scalar_value=valid_accy[1], global_step=epoch)
-
-
 
 
         print('Saving...\n')

@@ -91,15 +91,15 @@ class SpecificDataset(object):
                                  self.std)])
 
 
-        self.train_dataset = torchvision.datasets.ImageFolder(path_train, transform=train_transform)
+        self.train_dataset = torchvision.datasets.ImageFolder(self.args.path_train, transform=train_transform)
         self.train_dataset.train = True
         self.train_dataset.data, self.train_dataset.targets = self.tuple2list(self.train_dataset)
 
-        self.test_dataset = torchvision.datasets.ImageFolder(path_test, transform=test_transform)
+        self.test_dataset = torchvision.datasets.ImageFolder(self.args.path_test, transform=test_transform)
         self.test_dataset.data, self.test_dataset.targets = self.tuple2list(self.test_dataset)
         self.test_dataset.train = False
 
-        self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+        self.classes = ('bird', 'car', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'plane', 'truck')
 
         self.width, self.height = 32, 32
         self.channels = 3
