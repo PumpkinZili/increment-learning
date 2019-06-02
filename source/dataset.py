@@ -154,6 +154,7 @@ class SpecificDataset(object):
             self.train_dataset_old = torchvision.datasets.ImageFolder(train_set_old, transform=train_transform)
             self.train_dataset_old.train = True
             self.train_dataset_old.data, self.train_dataset_old.targets = self.tuple2list(self.train_dataset_old)
+            self.train_dataset_old.dataset_name = self.dataset_name
 
         self.classes = self.train_dataset.classes
         self.width, self.height = 32, 32
@@ -284,13 +285,12 @@ class IncrementBatchSampler(Sampler):
     def __iter__(self):
         for _ in range(self.repeat):
             curr_p = 7
-            np.random.shuffle(self.targets_uniq)
+            # np.random.shuffle(self.targets_uniq)
             for k, v in self.target_img_dict.items():
                 np.random.shuffle(self.target_img_dict[k])
 
             for i in range(self.iter_num):
                 target_batch = self.targets_uniq[curr_p: curr_p + self.n_classes]
-                # curr_p += self.n_classes
                 idx = []
                 for target in target_batch:
                     if len(self.target_img_dict[target]) > self.n_num:

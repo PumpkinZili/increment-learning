@@ -1,7 +1,7 @@
 import argparse
 import os
-from dataset import SpecificDataset, SampledDataset, BatchSampler
-from utils import TripletLoss, TripletLossV2
+from dataset import SpecificDataset, SampledDataset, BatchSampler, IncrementBatchSampler
+from utils import TripletLoss, TripletLossV2, Embedding_loss
 import torch
 from torch.optim import lr_scheduler
 from model import EmbeddingNet
@@ -197,8 +197,9 @@ def get_osc(args, model):
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
     # criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
     criterion = TripletLossV2(margin=args.margin)
+    embedding_loss = Embedding_loss()
 
-    return optimizer, scheduler, criterion
+    return optimizer, scheduler, criterion, embedding_loss
 
 
 def get_dataloader(args):
@@ -212,19 +213,28 @@ def get_dataloader(args):
     print('Validation data has {}'.format(len(test_dataset)))
 
     kwargs = {'num_workers': 8, 'pin_memory': False}
-    batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
-    # batch_sampler = LimitedBatchSampler(train_dataset, 10, args.batch_n_num, args.batch_n_classes)
 
-    sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=batch_sampler, **kwargs)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
-
-    if args.increment:
-        train_dataset_old = SampledDataset(dataset.train_dataset_old, dataset.channels, args.amount)
-        sampler_train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_sampler=batch_sampler, **kwargs)
-        train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_size=args.test_batch_size, shuffle=False, **kwargs)
-    else:
+    if args.increment == 0:
+        batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
+        # batch_sampler = LimitedBatchSampler(train_dataset, 10, args.batch_n_num, args.batch_n_classes)
+        sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=batch_sampler, **kwargs)
         train_loader_old = None
         sampler_train_loader_old = None
+
+    else:
+        incrementBatchSampler = IncrementBatchSampler(train_dataset, n_num=args.batch_n_num)
+        sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=incrementBatchSampler, **kwargs)
+
+        train_dataset_old = SampledDataset(dataset.train_dataset_old, dataset.channels, args.amount)
+        print('Old train data has {}'.format(len(train_dataset_old)))
+
+        batch_sampler = BatchSampler(train_dataset_old, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
+        sampler_train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_sampler=batch_sampler, **kwargs)
+
+        train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_size=200, shuffle=False, **kwargs)
+
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
     return sampler_train_loader, train_loader, test_loader, sampler_train_loader_old, train_loader_old, classes

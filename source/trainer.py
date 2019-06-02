@@ -11,7 +11,7 @@ import shutil
 from sklearn import neighbors
 class Trainer():
     def __init__(self, args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model,
-                 preserved, sampler_train_loader_old, train_loader_old, criterion, writer, file_writer, save_path, classes):
+                 preserved, sampler_train_loader_old, train_loader_old, criterion, embedding_loss, writer, file_writer, save_path, classes):
         self.args                 = args
         self.optimizer            = optimizer
         self.scheduler            = scheduler
@@ -20,6 +20,7 @@ class Trainer():
         self.test_loader          = test_loader
         self.model                = model
         self.criterion            = criterion
+        self.embedding_loss       = embedding_loss
         self.writer               = writer
         self.f                    = file_writer
         self.save_path            = save_path
@@ -31,12 +32,15 @@ class Trainer():
         if self.increment :
             self.means = preserved['fts_means']
             self.preserved_embedding = preserved['preserved_embedding']
+            self.preserved_embedding = self.embedding_transform(self.preserved_embedding)
+
 
         # Get valid labels for plotting confusion matrix
         valid_lbls = []
         for _, (_, lbls) in enumerate(self.test_loader):
             valid_lbls.extend(lbls.cpu().data.numpy() if lbls.is_cuda else lbls.data.numpy())
         self.valid_lbls = np.array(valid_lbls)
+
 
     def run(self):
         start_time = datetime.datetime.now()
@@ -47,100 +51,99 @@ class Trainer():
 
 
             if self.increment:
-                train_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
-                              optimizer=self.optimizer, new_loader=self.sampler_train_loader, old_loader=self.sampler_train_loader_old)
+                old_loss, new_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
+                                                          embedding_loss=self.embedding_loss,optimizer=self.optimizer, new_loader=self.sampler_train_loader,
+                                                          old_loader=self.sampler_train_loader_old, train_loader=self.train_loader_old)
+
+                if epoch % 2 == 0 :
+                    validate_start = datetime.datetime.now()
+                    printConfig(self.args, self.f, self.optimizer)
+
+                    with torch.no_grad():
+                        new_embeddings, new_targets = self.extractEmbeddings(self.model, self.train_loader)
+                        old_embeddings, old_targets = self.extractEmbeddings(self.model, self.train_loader_old)
+
+                    ########################################
+                    embeddings = torch.cat((new_embeddings, old_embeddings))
+                    targets = np.append(new_targets, old_targets)
+                    fts_means, labels = self.extract_feature_mean(embeddings, targets)
+                    clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(
+                        embeddings.cpu().data.numpy(), targets)
+                    clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
+                    # clf_ncm = neighbors.NearestCentroid().fit(self.means.cpu().data.numpy(), labels)
+                    #############################################
+                    # New Train accuracy
+                    new_train_accy, new_train_fts, new_train_lbls = self.validate(args=self.args,
+                                                                                  model=self.model,
+                                                                                  loader=self.train_loader,
+                                                                                  clf_knn=clf_knn,
+                                                                                  clf_ncm=clf_ncm)
+
+                    # Old train acc
+                    old_train_accy, old_train_fts, old_train_lbls = self.validate(args=self.args,
+                                                                                  model=self.model,
+                                                                                  loader=self.train_loader_old,
+                                                                                  clf_knn=clf_knn,
+                                                                                  clf_ncm=clf_ncm)
+
+                    # Test accuracy
+                    valid_accy, pred_fts, pred_lbls = self.validate(args=self.args,
+                                                                    model=self.model,
+                                                                    loader=self.test_loader,
+                                                                    clf_knn=clf_knn,
+                                                                    clf_ncm=clf_ncm)
+
+                    if (valid_accy[1] >= best_acc) or epoch == self.args.epoch :
+                        best_acc = max(best_acc, valid_accy[1])
+                        best_epoch = epoch
+                    # preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
+                    # self.save_model(epoch, fts_means, preserved_embedding)
+
+                    self.log(epoch, new_loss, new_train_accy, valid_accy, validate_start, fts_means, pred_lbls, old_loss, old_train_accy)
+
             else:
                 train_loss = self.train(pairwise=self.args.pairwise,epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
-            validate_start = datetime.datetime.now()
-            if epoch % 4 == 0 and self.increment == 0:
-                printConfig(self.args, self.f, self.optimizer)
 
-                # Validate
-                with torch.no_grad():
-                    benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
-                embeddings, targets = benchmark  # from training set [n, feature_dimension]
-                fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [n, feature_dimension], [n]
+                if epoch % 4 == 0:
+                    validate_start = datetime.datetime.now()
+                    printConfig(self.args, self.f, self.optimizer)
 
-
-                clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
-                clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
-
-                # Train accuracy
-                train_accy, train_fts, train_lbls = self.validate(args=self.args,
-                                                                  model=self.model,
-                                                                  loader=self.train_loader,
-                                                                  clf_knn=clf_knn,
-                                                                  clf_ncm=clf_ncm)
-
-                # Test accuracy
-                valid_accy, pred_fts, pred_lbls = self.validate(args=self.args,
-                                                                model=self.model,
-                                                                loader=self.test_loader,
-                                                                clf_knn=clf_knn,
-                                                                clf_ncm=clf_ncm)
-
-                if (train_accy[1] >= 0.96 and valid_accy[1] >= best_acc) or epoch == self.args.epoch :
-                    best_acc = max(best_acc, valid_accy[1])
-                    best_epoch = epoch
-                    preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
-                    self.save_model(epoch, fts_means, preserved_embedding)
-
-                self.log(epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls)
+                    # Validate
+                    with torch.no_grad():
+                        benchmark = self.extractEmbeddings(model=self.model, train_loader=self.train_loader)
+                    embeddings, targets = benchmark  # from training set [n, feature_dimension]
+                    fts_means, labels = self.extract_feature_mean(embeddings, targets)  # [n, feature_dimension], [n]
 
 
-            if epoch % 4 == 0 and self.increment > 0:
-                printConfig(self.args, self.f, self.optimizer)
+                    clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(), targets)
+                    clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
 
-                with torch.no_grad():
-                    new_embeddings, new_targets = self.extractEmbeddings(self.model, self.train_loader)
-                    old_embeddings, old_targets = self.extractEmbeddings(self.model, self.train_loader_old)
+                    # Train accuracy
+                    train_accy, train_fts, train_lbls = self.validate(args=self.args,
+                                                                      model=self.model,
+                                                                      loader=self.train_loader,
+                                                                      clf_knn=clf_knn,
+                                                                      clf_ncm=clf_ncm)
 
-                ########################################
-                embeddings = torch.cat(new_embeddings, old_embeddings)
-                targets = torch.cat(new_targets, old_targets)
-                fts_means, labels = self.extract_feature_mean(embeddings, targets)
+                    # Test accuracy
+                    valid_accy, pred_fts, pred_lbls = self.validate(args=self.args,
+                                                                    model=self.model,
+                                                                    loader=self.test_loader,
+                                                                    clf_knn=clf_knn,
+                                                                    clf_ncm=clf_ncm)
 
-                clf_knn = neighbors.KNeighborsClassifier(n_neighbors=self.args.vote).fit(embeddings.cpu().data.numpy(),
-                                                                                         targets)
-                clf_ncm = neighbors.NearestCentroid().fit(fts_means.cpu().data.numpy(), labels)
+                    if (train_accy[1] >= 0.96 and valid_accy[1] >= best_acc) or epoch == self.args.epoch :
+                        best_acc = max(best_acc, valid_accy[1])
+                        best_epoch = epoch
+                        preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
+                        self.save_model(epoch, fts_means, preserved_embedding)
 
-                #############################################
-                # New Train accuracy
-                new_train_accy, new_train_fts, new_train_lbls = self.validate(args=self.args,
-                                                                  model=self.model,
-                                                                  loader=self.train_loader,
-                                                                  clf_knn=clf_knn,
-                                                                  clf_ncm=clf_ncm)
+                    self.log(epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls)
 
-                # Old train acc
-                old_train_accy, old_train_fts, old_train_lbls = self.validate(args=self.args,
-                                                                  model=self.model,
-                                                                  loader=self.train_loader_old,
-                                                                  clf_knn=clf_knn,
-                                                                  clf_ncm=clf_ncm)
 
-                # Test accuracy
-                valid_accy, pred_fts, pred_lbls = self.validate(args=self.args,
-                                                                model=self.model,
-                                                                loader=self.test_loader,
-                                                                clf_knn=clf_knn,
-                                                                clf_ncm=clf_ncm)
 
-                # if (valid_accy[1] >= best_acc) or epoch == self.args.epoch :
-                #     best_acc = max(best_acc, valid_accy[1])
-                #     best_epoch = epoch
-                    # preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
-                    # self.save_model(epoch, fts_means, preserved_embedding)
-                info = 'Epoch: {}, Train_loss: {:.4f}, New_Train_accy(KNN, NCM): {:.4f}, {:.4f}, ' \
-                        'New_Train_accy(KNN, NCM): {:.4f}, {:.4f},'\
-                       'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
-                    epoch, train_loss, new_train_accy[0], new_train_accy[1],old_train_accy[0],
-                    old_train_accy[1], valid_accy[0], valid_accy[1],
-                    (datetime.datetime.now() - validate_start).seconds)
-                print(info)
-                self.f.write(info + '\r\n')
 
             end_time = datetime.datetime.now()
             secs = (end_time - start_time).seconds
@@ -189,39 +192,62 @@ class Trainer():
         return losses.avg
 
 
-    def train_increment(self, epoch, model, criterion, optimizer, new_loader, old_loader):
-        losses = AverageMeter()
+    def train_increment(self, epoch, model, criterion, optimizer, new_loader, old_loader, embedding_loss, train_loader=None):
+        old_losses = AverageMeter()
+        new_losses = AverageMeter()
+        ebd_losses = AverageMeter()
         model.train()
-        for step, (images, labels) in enumerate(old_loader):
-            # print(labels)
-            if torch.cuda.is_available() :
-                images, labels = images.cuda(), labels.cuda()
+        for i in range(10):
+            for step, (images, labels) in enumerate(old_loader):
+                # print(labels)
+                if torch.cuda.is_available() :
+                    images, labels = images.cuda(), labels.cuda()
 
-            # Extract features
-            embeddings = model(images)
-            anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+                # Extract features
+                embeddings = model(images)
+                anchor, positive, negative, targets = gettriplet(self.args.method, embeddings, labels)
 
-            # Loss
-            # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
-            # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
-            if self.args.method == 'semihard':
-                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
-            else:
-                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
-            loss = triplet_loss + pairwise_term * 0.5
-            losses.update(loss.item())
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            if step % 4 ==0:
-                s = str(ap)+'   '+str(an)
-                print(s)
-                self.f.write(s+'\r\n')
+                # Loss
+                # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
+                # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
+                if self.args.method == 'semihard':
+                    triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=True, means=self.means)
+                else:
+                    triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=False, means=self.means)
+                loss = triplet_loss + pairwise_term * 0.5
+                old_losses.update(loss.item())
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                if step % 4 ==0:
+                    s = str(ap)+'   '+str(an)
+                    print(s)
+                    self.f.write(s+'\r\n')
 
-            if (step+1) % 25 == 0:
-                    # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
-                #     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
-                info = 'Epoch: {} Step: {}/{}| Old data set | Train_loss: {:.3f}'.format(epoch, step, len(old_loader), losses.avg)
+                if (step+1) % 6 == 0:
+                        # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f}
+                        # | n_triplets: {}'.format(
+                        # epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
+                    info = 'Epoch: {} Step: {}/{}| Old data set | Train_loss: {:.3f}'.format(epoch, step+1, len(old_loader), old_losses.avg)
+                    self.f.write(info + '\r\n')
+                    print(info)
+
+            for step, (images, labels) in enumerate(train_loader):
+                if torch.cuda.is_available():
+                    images, labels = images.cuda(), labels.cuda()
+
+                # Extract features
+                embeddings = model(images)
+
+                l2_loss, l1_loss = embedding_loss(embeddings, self.preserved_embedding, rm_zero=True)
+                loss = l2_loss
+                ebd_losses.update(loss.item())
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                info = 'Epoch: {} Step: {}/{}| Old data set | Embedding_loss: {:.3f}'.format(epoch, step + 1,
+                                                                                             len(train_loader),
+                                                                                             ebd_losses.avg)
                 self.f.write(info + '\r\n')
                 print(info)
 
@@ -233,17 +259,18 @@ class Trainer():
 
             # Extract features
             embeddings = model(images)
-            anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+            anchor, positive, negative, targets = gettriplet(self.args.method, embeddings, labels)
 
             # Loss
             # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
             # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
             if self.args.method == 'semihard':
-                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
+                triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=True, means=self.means)
             else:
-                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
+                triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=False, means=self.means)
             loss = triplet_loss + pairwise_term * 0.5
-            losses.update(loss.item())
+
+            new_losses.update(loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -253,14 +280,17 @@ class Trainer():
                 print(s)
                 self.f.write(s+'\r\n')
 
-            if (step+1) % 25 == 0:
+            if (step+1) % 10 == 0:
                     # info = 'Epoch: {} Step: {}/{} | Train_loss: {:.3f} | Terms(triplet, sparse, pairwise): {:.3f}, {:.3f}, {:.3f} | n_triplets: {}'.format(
                 #     epoch,step, len(loader), losses.avg, triplet_term, sparse_term, pairwise_term, n_triplets)
-                info = 'Epoch: {} Step: {}/{} | New data set | Train_loss: {:.3f}'.format(epoch, step, len(new_loader), losses.avg)
+                info = 'Epoch: {} Step: {}/{} | New data set | Train_loss: {:.3f}'.format(epoch, step+1, len(new_loader), new_losses.avg)
                 self.f.write(info + '\r\n')
                 print(info)
 
-        return losses.avg
+
+
+
+        return old_losses.avg, new_losses.avg
 
 
     def validate(self, args, model, loader, clf_knn, clf_ncm):
@@ -453,12 +483,20 @@ class Trainer():
         return fea, l
 
 
-    def log(self, epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls):
+    def log(self, epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls, old_loss=None, old_train_accy=None):
 
-        info = 'Epoch: {}, Train_loss: {:.4f}, Train_accy(KNN, NCM): {:.4f}, {:.4f}, ' \
-               'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
-            epoch, train_loss, train_accy[0], train_accy[1], valid_accy[0], valid_accy[1],
-            (datetime.datetime.now() - validate_start).seconds)
+        if self.increment:
+            info = 'Epoch: {}, New_Train_loss: {:.4f}, Old_Train_loss: {:.4f}, New_Train_accy(KNN, NCM): ' \
+                   '{:.4f}, {:.4f}, Old_Train_accy(KNN, NCM): {:.4f}, {:.4f},' \
+                   'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
+                epoch, train_loss, old_loss, train_accy[0], train_accy[1], old_train_accy[0],
+                old_train_accy[1], valid_accy[0], valid_accy[1],
+                (datetime.datetime.now() - validate_start).seconds)
+        else:
+            info = 'Epoch: {}, Train_loss: {:.4f}, Train_accy(KNN, NCM): {:.4f}, {:.4f}, ' \
+                   'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
+                epoch, train_loss, train_accy[0], train_accy[1], valid_accy[0], valid_accy[1],
+                (datetime.datetime.now() - validate_start).seconds)
         print(info)
 
         self.f.write(info + '\r\n')
@@ -467,7 +505,10 @@ class Trainer():
         self.writer.add_scalar(tag='Train accy(NCM)', scalar_value=train_accy[1], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(KNN)', scalar_value=valid_accy[0], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(NCM)', scalar_value=valid_accy[1], global_step=epoch)
-
+        if self.increment:
+            self.writer.add_scalar(tag='Old Train loss', scalar_value=old_loss, global_step=epoch)
+            self.writer.add_scalar(tag='Old Train accy(KNN)', scalar_value=old_train_accy[0], global_step=epoch)
+            self.writer.add_scalar(tag='Old Train accy(NCM)', scalar_value=old_train_accy[1], global_step=epoch)
 
         print('Saving...\n')
         # Confusion ##########################################################################
@@ -493,6 +534,23 @@ class Trainer():
         all_fts = torch.cat((all_train_fts, all_test_fts))
         all_lbls = torch.cat((all_train_lbls, all_test_lbls))
         self.writer.add_embedding(global_step=epoch + 2000, mat=all_fts, metadata=all_lbls)
+
+        if self.increment:
+            # Old train set ###########################################################################
+            with torch.no_grad():
+                benchmark = self.getEmbeddings(model=self.model, loader=self.train_loader_old)
+            all_train_fts_old, all_train_lbls_old = benchmark
+            self.writer.add_embedding(global_step=epoch + 3000, mat=all_train_fts_old, metadata=all_train_lbls_old)
+
+            # New train + Old train  ##################################################################
+            new_old = torch.cat((all_train_fts, all_train_fts_old))
+            new_old_lbl = torch.cat((all_train_lbls, all_train_lbls_old))
+            self.writer.add_embedding(global_step=epoch + 4000, mat=new_old, metadata=new_old_lbl)
+
+            # old train + test ########################################################################
+            old_test = torch.cat((all_train_fts_old, all_test_fts))
+            old_test_lbl = torch.cat((all_train_lbls_old, all_test_lbls))
+            self.writer.add_embedding(global_step=epoch + 5000, mat=old_test, metadata=old_test_lbl)
 
         # Sparsity  ##########################################################################
         fts_means = fts_means.cpu().data.numpy() if fts_means.is_cuda else fts_means.data.numpy()
@@ -525,3 +583,10 @@ class Trainer():
                 'embeddings': preserved_embedding
             }
             torch.save(state_current, os.path.join(self.save_path['path_pkl'], 'state_current.pth'))
+
+
+    def embedding_transform(self, embedding):
+        p = embedding[0]
+        for i in range(1, 10):
+            p = torch.cat((p, embedding[i]))
+        return p

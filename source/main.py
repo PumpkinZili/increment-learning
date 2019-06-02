@@ -16,21 +16,22 @@ def main():
 
 
     current_time, f, save_path, writer = makedir(args)
-    args.train_set_old = '/data0/zili/code/checkpoints/2019-05-26 23:25:58.449965'
+    args.train_set_old = '/data0/share/zili/checkpoints/May28_17-43-46'
 
 
     model, preserved = get_model(args)
     model = model.cuda()
 
-    optimizer, scheduler, criterion = get_osc(args, model)
+    optimizer, scheduler, criterion, embedding_loss = get_osc(args, model)
     criterion = criterion.cuda()
+    embedding_loss = embedding_loss.cuda()
 
 
     sampler_train_loader, train_loader, test_loader, sampler_train_loader_old, train_loader_old, classes = get_dataloader(args)
 
 
     trainer = Trainer(args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model,
-                      preserved, sampler_train_loader_old, train_loader_old, criterion, writer, f, save_path, classes)
+                      preserved, sampler_train_loader_old, train_loader_old, criterion, embedding_loss, writer, f, save_path, classes)
     trainer.run()
 
 

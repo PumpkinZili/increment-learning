@@ -36,7 +36,7 @@ class TripletLoss(nn.Module):
         # triplets, eff_rate = self.triplet_miner.get_triplets(embedings, targets, model)
         # if embedings.is_cuda:
         #     triplets = triplets.cuda()
-        anchors, positives, negatives = gettriplet(self.method, embedings, targets)
+        anchors, positives, negatives, labels = gettriplet(self.method, embedings, targets)
 
         ap_distances = (anchors - positives).pow(2).sum(1)
         an_distances = (anchors - negatives).pow(2).sum(1)
@@ -64,7 +64,7 @@ class TripletLossV2(nn.Module):
         super(TripletLossV2, self).__init__()
         self.margin = margin
 
-    def forward(self, anchor, positive, negative, isSemiHard, size_average=None):
+    def forward(self, anchor, positive, negative, targets, isSemiHard, size_average=None, means=None):
         """Average
         Args:
             size_average: None, average on semi and hard,
@@ -75,6 +75,7 @@ class TripletLossV2(nn.Module):
         np_distances = (positive - negative).pow(2).sum(1)
 
         triplet_loss = F.relu(distance_positive - distance_negative + self.margin)
+
         if isSemiHard:
             semi = torch.nonzero((triplet_loss <= self.margin) & (triplet_loss > 0))
             triplet_loss.index_select(dim=0, index=semi.squeeze())
@@ -86,21 +87,52 @@ class TripletLossV2(nn.Module):
             triplet_loss = (triplet_loss / non_zero).sum()
         pairwise_term = F.relu((distance_positive + (-distance_negative) + (-np_distances)).mean())
 
-        return triplet_loss.mean(), pairwise_term, distance_positive.mean().item(), distance_negative.mean().item()
+        center_loss = 0
+        if means is not None:
+            center_loss = (anchor - means[targets]).pow(2).sum(1).mean()
+
+
+        return triplet_loss, pairwise_term, center_loss, distance_positive.mean().item(), distance_negative.mean().item()
+
+
+class Embedding_loss(nn.Module):
+    def __init__(self):
+        super(Embedding_loss, self).__init__()
+
+    def forward(self, embeddings, preserved_embedding, rm_zero=False):
+        l2_loss = (embeddings - preserved_embedding).pow(2).sum(1)
+        l1_loss = abs(embeddings - preserved_embedding).sum(1)
+        if rm_zero:
+            l2_non_zero = torch.nonzero(l2_loss.cpu().data).size(0)
+            l1_non_zero = torch.nonzero(l1_loss.cpu().data).size(0)
+            if l2_non_zero == 0:
+                l2_loss = l2_loss.mean()
+            else:
+                l2_loss = (l2_loss / l2_non_zero).sum()
+            if l1_non_zero == 0:
+                l1_loss = l1_loss.mean()
+            else:
+                l1_loss = (l1_loss / l1_non_zero).sum()
+        else:
+            l2_loss = l2_loss.mean()
+            l1_loss = l1_loss.mean()
+
+        return l2_loss, l1_loss
+
 
 
 def gettriplet(method,embedings,targets):
 
     if method == 'batchhard':
-        anchors, positives, negatives = generate_batch_hard_triplet(embedings, targets)
+        anchors, positives, negatives, labels = generate_batch_hard_triplet(embedings, targets)
     elif method == 'batchall' or method == 'semihard':
-        anchors, positives, negatives = generate_all_triplet(embedings, targets)
+        anchors, positives, negatives, labels = generate_all_triplet(embedings, targets)
     elif method == 'batchrandom':
-        anchors, positives, negatives = generate_random_triplets(embedings, targets)
+        anchors, positives, negatives, labels = generate_random_triplets(embedings, targets)
     else:
         print(method)
         raise NotImplementedError
-    return anchors, positives, negatives,
+    return anchors, positives, negatives, labels
 
 
 def pairwise_distances(x, y=None):
@@ -187,10 +219,11 @@ def generate_random_triplets(embeddeds, targets, triplet_num=1000):
     batch_len = embeddeds.size(0)
 
     ts = targets.reshape(-1).cpu().data.numpy()
-    anchor, positive, negative = [], [], []
+    anchor, positive, negative, labels = [], [], [], []
     for i in range(triplet_num):
         an_id = random.randint(0, batch_len - 1)
         incls_ids = np.where(ts == ts[an_id])[0]
+
         while len(incls_ids) == 1:
             an_id = random.randint(0, batch_len - 1)
             incls_ids = np.where(ts == ts[an_id])[0]
@@ -205,12 +238,13 @@ def generate_random_triplets(embeddeds, targets, triplet_num=1000):
         anchor.append(embeddeds[an_id].unsqueeze(0))
         positive.append(embeddeds[pos_id].unsqueeze(0))
         negative.append(embeddeds[neg_id].unsqueeze(0))
+        labels.append(ts[an_id])
 
     anchor = torch.cat(anchor, 0)
     positive = torch.cat(positive, 0)
     negative = torch.cat(negative, 0)
 
-    return anchor, positive, negative
+    return anchor, positive, negative, labels
 
 
 def generate_batch_hard_triplet(embeddeds, targets):
@@ -225,7 +259,7 @@ def generate_batch_hard_triplet(embeddeds, targets):
 
     dis_mat = pairwise_distances(embeddeds).cpu().data.numpy()
     # print(dis_mat.shape)
-    anchor, positive, negative = [], [], []
+    anchor, positive, negative, labels = [], [], [], []
 
     ts = targets.reshape(-1).cpu().data.numpy()
     # print(ts)
@@ -249,6 +283,7 @@ def generate_batch_hard_triplet(embeddeds, targets):
         anchor.append(an)
         positive.append(embeddeds[incls_farest].unsqueeze(0))
         negative.append(embeddeds[outcls_closest].unsqueeze(0))
+        labels.append(ts[i])
 
     try:
         anchor = torch.cat(anchor, 0)
@@ -259,7 +294,7 @@ def generate_batch_hard_triplet(embeddeds, targets):
         print(positive)
         print(negative)
 
-    return anchor, positive, negative
+    return anchor, positive, negative, labels
 
 
 def generate_all_triplet(embeddeds, targets):
@@ -268,7 +303,7 @@ def generate_all_triplet(embeddeds, targets):
 
     un_embeddeds = embeddeds.unsqueeze(dim=1)
 
-    anchor, positive, negative = [], [], []
+    anchor, positive, negative, labels = [], [], [], []
 
     for i in range(batch_len):
         incls_id = np.nonzero(ts == ts[i])[0]
@@ -285,6 +320,7 @@ def generate_all_triplet(embeddeds, targets):
                 anchor.append(un_embeddeds[i])
                 positive.append(un_embeddeds[iid])
                 negative.append(un_embeddeds[oid])
+                labels.append(ts[i])
     try:
         anchor = torch.cat(anchor, 0)
         positive = torch.cat(positive, 0)
@@ -295,7 +331,7 @@ def generate_all_triplet(embeddeds, targets):
         print(negative)
         raise RuntimeError
 
-    return anchor, positive, negative
+    return anchor, positive, negative, labels
 
 
 def generate_semi_hard_triplet(embeddeds, targets):
@@ -408,6 +444,7 @@ def printConfig(args,f, optimizer):
     print("method: {}".format(args.method))
     print("model: {}".format(args.model_name))
     print("num_triplet: {}".format(args.num_triplet))
+    print("comment: {}".format(args.comment))
     print("check_path: {}".format(args.check_path))
     print("train_batch_size: {}".format(args.train_batch_size))
     print("test_batch_size: {}".format(args.test_batch_size))
@@ -425,6 +462,7 @@ def printConfig(args,f, optimizer):
     f.write("model: {}".format(args.model_name) + '\r\n')
     f.write("method: {}".format(args.method) + '\r\n')
     f.write("num_triplet: {}".format(args.num_triplet) + '\r\n')
+    f.write("comment: {}".format(args.comment) + '\r\n')
     f.write("check_path: {}".format(args.check_path) + '\r\n')
     f.write("train_batch_size: {}".format(args.train_batch_size) + '\r\n')
     f.write("test_batch_size: {}".format(args.test_batch_size) + '\r\n')
