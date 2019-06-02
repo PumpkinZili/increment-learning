@@ -408,7 +408,7 @@ def makedir(args):
     shutil.copy('model.py', save_path['path_source'])
     shutil.copy('utils.py', save_path['path_source'])
 
-    output1 = 'log_' + current_time
+    output1 = current_time + args.comment
     f = open(args.check_path + os.path.sep + output1 + '.txt', 'w+')
     writer = SummaryWriter(log_dir=save_path['path_runs'])
     return current_time, f, save_path, writer
@@ -446,8 +446,6 @@ def printConfig(args,f, optimizer):
     print("num_triplet: {}".format(args.num_triplet))
     print("comment: {}".format(args.comment))
     print("check_path: {}".format(args.check_path))
-    print("train_batch_size: {}".format(args.train_batch_size))
-    print("test_batch_size: {}".format(args.test_batch_size))
     print("is_pretrained: {}".format(args.pretrained))
     print("data_augmentation: {}".format(args.data_augmentation))
     print("batch_n_classes: {}".format(args.batch_n_classes))
