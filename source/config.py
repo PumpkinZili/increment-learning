@@ -26,7 +26,7 @@ def arg():
                         help='amount of each class for train data')
     parser.add_argument('--batch_n_classes', default=7, type=int,
                         help='depend on your dataset')
-    parser.add_argument('--batch_n_num', default=5, type=int,
+    parser.add_argument('--batch_n_num', default=15, type=int,
                         help='depend on your dataset, number for each class per batch')
     parser.add_argument('--train-batch-size', type=int, default=96, metavar='number',
                         help='input batch size for training (default: 32)')
@@ -46,7 +46,7 @@ def arg():
                         help='classes number of dataset')
     parser.add_argument('--step_size', default='30', type=int,
                         help='Scheduler step size for SGD')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
+    parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--k', type=int, default=20, metavar='S',
                         help='how many images to be preserved (default: 20)')
@@ -68,7 +68,7 @@ def arg():
                         metavar='string', help='comment for current train')
     parser.add_argument('--method', type=str, default='batchhard', metavar='R',
                         help='method of sample, batchhard, batchall, batchrandom')
-    parser.add_argument('--pretrained', type=bool, default=False, metavar='R',
+    parser.add_argument('--pretrained', type=bool, default=True, metavar='R',
                         help='whether model is pretrained.')
     parser.add_argument('--increment', type=int, default=0, metavar='R',
                         help='which step in increment precess.')

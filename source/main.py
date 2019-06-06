@@ -6,17 +6,19 @@ from torch.optim import lr_scheduler
 from torch.backends import cudnn
 from trainer import Trainer
 import sys
+import random
 import os
 
 
 def main():
     args = get_args()
+    random.seed(args.seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.CVDs
     cudnn.benchmark = True
 
 
     current_time, f, save_path, writer = makedir(args)
-    args.train_set_old = '/data0/share/zili/checkpoints/May28_17-43-46'
+    args.train_set_old = '/data0/zili/code/checkpoints/Jun05_18-25-14'
 
 
     model, preserved = get_model(args)

@@ -163,15 +163,12 @@ class Trainer():
 
             # Extract features
             embeddings = model(images)
-            anchor, positive, negative = gettriplet(self.args.method, embeddings, labels)
+            anchor, positive, negative, target = gettriplet(self.args.method, embeddings, labels)
 
             # Loss
             # triplet_term, sparse_term, pairwise_term, n_triplets, ap, an = criterion(embeddings, labels, model)
             # loss = triplet_term + sparse_term * 0.5 + pairwise_term * 0.5
-            if self.args.method == 'semihard':
-                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=True)
-            else:
-                triplet_loss, pairwise_term, ap, an = criterion(anchor, positive, negative, isSemiHard=False)
+            triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, target, isSemiHard=(self.args.method == 'semihard'))
             loss = triplet_loss + pairwise_term * pairwise
             losses.update(loss.item())
             optimizer.zero_grad()
@@ -209,10 +206,7 @@ class Trainer():
                 anchor, positive, negative, targets = gettriplet(self.args.method, embeddings, labels)
 
                 # Loss
-                if self.args.method == 'semihard':
-                    triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=True, means=self.means)
-                else:
-                    triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=False, means=self.means)
+                triplet_loss, pairwise_term, center_loss, ap, an = criterion(anchor, positive, negative, targets, isSemiHard=(self.args.method == 'semihard'), means=self.means)
                 loss = triplet_loss + pairwise_term * 0.5 + center_loss
                 old_losses.update(loss.item())
                 optimizer.zero_grad()
@@ -503,16 +497,18 @@ class Trainer():
             self.writer.add_scalar(tag='Old Train accy(NCM)', scalar_value=old_train_accy[1], global_step=epoch)
 
         print('Saving...\n')
-        # Confusion ##########################################################################
-        confusion = confusion_matrix(y_true=self.valid_lbls,
-                                     y_pred=pred_lbls)
-        plot_confusion_matrix(cm=confusion,
-                              classes=self.classes,
-                              save_path=os.path.join(self.save_path['path_cm'], 'cm_{}.png'.format(epoch)))
+
 
         #######################################################################################
 
         if valid_accy[1] > best_acc or epoch == self.args.epoch:
+            # Confusion ##########################################################################
+            confusion = confusion_matrix(y_true=self.valid_lbls,
+                                         y_pred=pred_lbls)
+            plot_confusion_matrix(cm=confusion,
+                                  classes=self.classes,
+                                  save_path=os.path.join(self.save_path['path_cm'], 'cm_{}.png'.format(epoch)))
+
             # train set ##############################################################################
             with torch.no_grad():
                 benchmark = self.getEmbeddings(model=self.model, loader=self.train_loader)
