@@ -6,20 +6,17 @@ import torch
 from torch.optim import lr_scheduler
 from model import EmbeddingNet
 def arg():
-    parser = argparse.ArgumentParser(description='Classifiar using triplet loss.')
+    parser = argparse.ArgumentParser(description='Classifier using triplet loss.')
     parser.add_argument('--CVDs', type=str, default='7', metavar='CUDA_VISIBLE_DEVICES',
                         help='CUDA_VISIBLE_DEVICES')
     parser.add_argument('--server', type=int, default=16, metavar='T',
                         help='which server is being used')
-    parser.add_argument('--train-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/train2',
+    parser.add_argument('--train-set', type=str, default='/home/zili/code/data/cifar100/train2',
                         metavar='dir', help='path of train set.')
     parser.add_argument('--train-set-old', type=str, default=None,
                         metavar='dir', help='path of old train set.')
-    parser.add_argument('--test-set', type=str, default='/home/zili/memory/FaceRecognition-master/data/cifar100/test2',
+    parser.add_argument('--test-set', type=str, default='/home/zili/code/data/cifar100/test2',
                         metavar='dir', help='path of test set.')
-    parser.add_argument('--train-set-csv', type=str,
-                        default='/home/zili/memory/FaceRecognition-master/data/cifar100/train.csv', metavar='file',
-                        help='path of train set.csv.')
     parser.add_argument('--num-triplet', type=int, default=10000, metavar='number',
                         help='number of triplet in dataset (default: 32)')
     parser.add_argument('--amount', default=0, type=int,
@@ -62,7 +59,7 @@ def arg():
                         help='Dropout probability (default: 0.2)')
     parser.add_argument('--pairwise', type=float, default=0.5, metavar='D',
                         help='weight of pairwise term in loss (default: 0.5)')
-    parser.add_argument('--check-path', type=str, default='/home/zili/memory/FaceRecognition-master/checkpoints',
+    parser.add_argument('--check-path', type=str, default='/share/zili/code/checkpoints',
                         metavar='folder', help='Checkpoint path')
     parser.add_argument('--comment', type=str, default='',
                         metavar='string', help='comment for current train')
@@ -70,8 +67,10 @@ def arg():
                         help='method of sample, batchhard, batchall, batchrandom')
     parser.add_argument('--pretrained', type=bool, default=True, metavar='R',
                         help='whether model is pretrained.')
+    parser.add_argument('--increment_phase', type=int, default=0, metavar='R',
+                        help='which step in increment phase, 0 means the first step')
     parser.add_argument('--increment', type=int, default=0, metavar='R',
-                        help='which step in increment precess.')
+                        help='equal to increment phase above, in case of miss, will be deleted soon.')
     parser.add_argument('--data_augmentation', type=bool, default=False, metavar='R',
                         help='whether data_augmentation.')
     args = parser.parse_args()
@@ -81,17 +80,17 @@ def adjustedArgs(args):
     if args.server == 31:
         if args.dataset == 'cifar100_10':
             args.train_set  = '/share/zili/code/triplet/data/cifar100/train2'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/share/zili/code/triplet/data/cifar100/increment'
             args.test_set   = '/share/zili/code/triplet/data/cifar100/test2'
         elif args.dataset == 'cifar10':
             args.train_set = '/share/zili/code/triplet/data/cifar10/train2'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/share/zili/code/triplet/data/cifar10/increment'
             args.test_set = '/share/zili/code/triplet/data/cifar10/test2'
         elif args.dataset == 'mnist':
             args.train_set = '/share/zili/code/triplet/data/mnist/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/share/zili/code/triplet/data/mnist/increment'
             args.test_set = '/share/zili/code/triplet/data/mnist/test'
         else:
@@ -103,17 +102,17 @@ def adjustedArgs(args):
     elif args.server == 16:
         if args.dataset == 'cifar100_10':
             args.train_set = '/data0/zili/code/data/cifar100/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/data0/zili/code/data/cifar100/increment'
             args.test_set = '/data0/zili/code/data/cifar100/test'
         elif args.dataset == 'cifar10':
             args.train_set = '/data0/zili/code/data/cifar10/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/data0/zili/code/data/cifar10/increment'
             args.test_set = '/data0/zili/code/data/cifar10/test'
         elif args.dataset == 'mnist':
             args.train_set = '/data0/zili/code/data/mnist/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/data0/zili/code/data/mnist/increment'
             args.test_set = '/data0/zili/code/data/mnist/test'
         else:
@@ -141,17 +140,17 @@ def adjustedArgs(args):
     elif args.server == 15:
         if args.dataset == 'cifar100_10':
             args.train_set = '/home/zili/code/data/cifar100/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/home/zili/code/data/cifar100/increment'
             args.test_set = '/home/zili/code/data/cifar100/test'
         elif args.dataset == 'cifar10':
             args.train_set = '/home/zili/code/data/cifar10/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/home/zili/code/data/cifar10/increment'
             args.test_set = '/home/zili/code/data/cifar10/test'
         elif args.dataset == 'mnist':
             args.train_set = '/home/zili/code/data/mnist/train'
-            if args.increment == 1:
+            if args.increment_phase == 1:
                 args.train_set = '/home/zili/code/data/mnist/increment'
             args.test_set = '/home/zili/code/data/mnist/test'
         else:
@@ -174,9 +173,9 @@ def get_args():
 
 def get_model(args):
     model, preserved = None, None
-    if args.increment == 0:
+    if args.increment_phase == 0:
         model = EmbeddingNet(network = args.model_name, pretrained=args.pretrained, embedding_len=args.embedding_size)
-    elif args.increment == 1:
+    elif args.increment_phase == 1:
         try:
             pkl = torch.load(args.train_set_old+'/pkl/state_best.pth')
             model = pkl['model']
@@ -186,7 +185,7 @@ def get_model(args):
             print(args.train_set_old+'.........')
             print(reason)
     else:
-        print(args.increment)
+        print(args.increment_phase)
         raise NotImplementedError
 
     return model, preserved
@@ -215,7 +214,7 @@ def get_dataloader(args):
 
     kwargs = {'num_workers': 8, 'pin_memory': False}
 
-    if args.increment == 0:
+    if args.increment_phase == 0:
         batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
         # batch_sampler = LimitedBatchSampler(train_dataset, 10, args.batch_n_num, args.batch_n_classes)
         sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=batch_sampler, **kwargs)

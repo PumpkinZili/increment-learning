@@ -146,7 +146,7 @@ class SpecificDataset(object):
         self.test_dataset_fc.train = False
         self.test_dataset_fc.dataset_name = self.dataset_name
 
-        if self.args.increment :
+        if self.args.increment_phase :
             train_set_old = os.path.join(self.args.train_set_old, 'images', 'best')
             if not os.path.exists(train_set_old):
                 print(train_set_old+'is not exists!!!')
@@ -280,6 +280,7 @@ class IncrementBatchSampler(Sampler):
         self.target_img_dict = dataset.target_img_dict
         self.len = len(dataset)
         self.iter_num = len(self.targets_uniq) // self.n_classes
+        self.iter_num = 1
         self.repeat = math.ceil(self.len / self.batch_size)
 
     def __iter__(self):

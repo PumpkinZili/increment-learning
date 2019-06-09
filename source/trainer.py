@@ -28,10 +28,10 @@ class Trainer():
         self.classes              = classes
         self.sampler_train_loader_old = sampler_train_loader_old
         self.train_loader_old     = train_loader_old
-        self.increment            = args.increment
+        self.increment_phase      = args.increment_phase
         self.means                = None
         self.preserved_embedding  = None
-        if self.increment :
+        if self.increment_phase :
             self.means = preserved['fts_means']
             self.preserved_embedding = preserved['preserved_embedding']
             self.preserved_embedding = self.embedding_transform(self.preserved_embedding)
@@ -51,7 +51,7 @@ class Trainer():
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            if self.increment:
+            if self.increment_phase:
                 old_loss, new_loss, ebd_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
                                                           embedding_loss=self.embedding_loss,optimizer=self.optimizer, new_loader=self.sampler_train_loader,
                                                           old_loader=self.sampler_train_loader_old, train_loader=self.train_loader_old)
@@ -94,7 +94,7 @@ class Trainer():
                     # self.save_model(epoch, fts_means, preserved_embedding)
 
             else:
-                train_loss = self.train(pairwise=self.args.pairwise,epoch=epoch, model=self.model,criterion=self.criterion,
+                train_loss = self.train_init(pairwise=self.args.pairwise,epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
                 if epoch % 4 == 0:
@@ -133,7 +133,7 @@ class Trainer():
 
 
 
-    def train(self, pairwise, epoch, model, criterion, optimizer, loader):
+    def train_init(self, pairwise, epoch, model, criterion, optimizer, loader):
         losses = AverageMeter()
         self.train_epoch(loader, model, criterion, losses, optimizer, epoch)
 
@@ -146,7 +146,7 @@ class Trainer():
         ebd_losses = AverageMeter()
 
         for i in range(10):
-            self.train_epoch(old_loader, model, criterion, old_losses, optimizer, epoch, interval=6)
+            # self.train_epoch(old_loader, model, criterion, old_losses, optimizer, epoch, interval=6)
 
             for step, (images, labels) in enumerate(train_loader):
                 if torch.cuda.is_available():
@@ -393,7 +393,7 @@ class Trainer():
 
     def log(self, epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls, best_acc, old_loss=None, ebd_loss=None, old_train_accy=None):
         printConfig(self.args, self.f, self.optimizer)
-        if self.increment:
+        if self.increment_phase:
             info = 'Epoch: {}, New_Train_loss: {:.4f}, Old_Train_loss: {:.4f}, ebd_loss: {:.4f}, New_Train_accy(KNN, NCM): ' \
                    '{:.4f}, {:.4f}, Old_Train_accy(KNN, NCM): {:.4f}, {:.4f},' \
                    'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
@@ -413,23 +413,22 @@ class Trainer():
         self.writer.add_scalar(tag='Train accy(NCM)', scalar_value=train_accy[1], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(KNN)', scalar_value=valid_accy[0], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(NCM)', scalar_value=valid_accy[1], global_step=epoch)
-        if self.increment:
+        if self.increment_phase:
             self.writer.add_scalar(tag='Old Train loss', scalar_value=old_loss, global_step=epoch)
             self.writer.add_scalar(tag='Old Train accy(KNN)', scalar_value=old_train_accy[0], global_step=epoch)
             self.writer.add_scalar(tag='Old Train accy(NCM)', scalar_value=old_train_accy[1], global_step=epoch)
 
         print('Saving...\n')
-
+        # Confusion ##########################################################################
+        confusion = confusion_matrix(y_true=self.valid_lbls,
+                                     y_pred=pred_lbls)
+        plot_confusion_matrix(cm=confusion,
+                              classes=self.classes,
+                              save_path=os.path.join(self.save_path['path_cm'], 'cm_{}.png'.format(epoch)))
 
         #######################################################################################
 
         if valid_accy[1] > best_acc or epoch == self.args.epoch:
-            # Confusion ##########################################################################
-            confusion = confusion_matrix(y_true=self.valid_lbls,
-                                         y_pred=pred_lbls)
-            plot_confusion_matrix(cm=confusion,
-                                  classes=self.classes,
-                                  save_path=os.path.join(self.save_path['path_cm'], 'cm_{}.png'.format(epoch)))
 
             # train set ##############################################################################
             with torch.no_grad():
@@ -448,7 +447,7 @@ class Trainer():
             all_lbls = torch.cat((all_train_lbls, all_test_lbls))
             self.writer.add_embedding(global_step=epoch + 2000, mat=all_fts, metadata=all_lbls)
 
-            if self.increment:
+            if self.increment_phase:
                 # Old train set ###########################################################################
                 with torch.no_grad():
                     benchmark = self.getEmbeddings(model=self.model, loader=self.train_loader_old)
@@ -465,15 +464,15 @@ class Trainer():
                 old_test_lbl = torch.cat((all_train_lbls_old, all_test_lbls))
                 self.writer.add_embedding(global_step=epoch + 5000, mat=old_test, metadata=old_test_lbl)
 
-        # Sparsity  ##########################################################################
-        fts_means = fts_means.cpu().data.numpy() if fts_means.is_cuda else fts_means.data.numpy()
-        save_dir = os.path.join(self.save_path['path_sparsity'], '{}'.format(epoch))
-        # makedirs(save_dir)  # make directory for histograms
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        plot_sparsity_histogram(features=fts_means,
-                                idx_to_name=self.classes,
-                                save_dir=save_dir)
+            # Sparsity  ##########################################################################
+            fts_means = fts_means.cpu().data.numpy() if fts_means.is_cuda else fts_means.data.numpy()
+            save_dir = os.path.join(self.save_path['path_sparsity'], '{}'.format(epoch))
+            # makedirs(save_dir)  # make directory for histograms
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            plot_sparsity_histogram(features=fts_means,
+                                    idx_to_name=self.classes,
+                                    save_dir=save_dir)
 
 
     def save_model(self, epoch, fts_means, preserved_embedding):

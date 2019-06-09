@@ -24,22 +24,21 @@ def main():
 
     model, preserved = get_model(args)
     model = model.cuda()
-
     for p in model.children():
         for c in p.parameters():
              c.requires_grad = False
         break
 
-    optimizer, scheduler, criterion, embedding_loss = get_osc(args, model)
-    criterion = criterion.cuda()
-    embedding_loss = embedding_loss.cuda()
+
+    optimizer, scheduler, criterion, embedding_loss_function = get_osc(args, model)
+    criterion, embedding_loss_function = criterion.cuda(), embedding_loss_function.cuda()
 
 
     sampler_train_loader, train_loader, test_loader, sampler_train_loader_old, train_loader_old, classes = get_dataloader(args)
 
 
     trainer = Trainer(args, optimizer, scheduler, sampler_train_loader, train_loader, test_loader, model,
-                      preserved, sampler_train_loader_old, train_loader_old, criterion, embedding_loss, writer, f, save_path, classes)
+                      preserved, sampler_train_loader_old, train_loader_old, criterion, embedding_loss_function, writer, f, save_path, classes)
     trainer.run()
 
 

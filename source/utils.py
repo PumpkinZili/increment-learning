@@ -393,8 +393,8 @@ class AverageMeter(object):
 
 def makedir(args):
     current_time = datetime.datetime.now().strftime('%b%d_%H-%M-%S')
-    if args.increment:
-        current_time = str(args.increment) + '_' + current_time
+    if args.increment_phase:
+        current_time = str(args.increment_phase) + '_' + current_time
     if not os.path.exists(args.check_path):
         mkdir(args.check_path)
     args.check_path = os.path.join(args.check_path, current_time)
@@ -450,7 +450,7 @@ def printConfig(args,f, optimizer):
     print("data_augmentation: {}".format(args.data_augmentation))
     print("batch_n_classes: {}".format(args.batch_n_classes))
     print("batch_n_num: {}".format(args.batch_n_num))
-    print("increment: {}".format(args.increment))
+    print("increment_phase: {}".format(args.increment_phase))
     print("pairwise: {}".format(args.pairwise))
     print("optimizer: {}".format(optimizer))
 
@@ -468,7 +468,7 @@ def printConfig(args,f, optimizer):
     f.write("data_augmentation: {}".format(args.data_augmentation) + '\r\n')
     f.write("batch_n_classes: {}".format(args.batch_n_classes) + '\r\n')
     f.write("batch_n_num: {}".format(args.batch_n_num) + '\r\n')
-    f.write("increment: {}".format(args.increment) + '\r\n')
+    f.write("increment_phase: {}".format(args.increment_phase) + '\r\n')
     f.write("pairwise: {}".format(args.pairwise) + '\r\n')
     f.write("optimizer: {}".format(optimizer) + '\r\n')
 
