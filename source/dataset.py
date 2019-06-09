@@ -146,7 +146,7 @@ class SpecificDataset(object):
         self.test_dataset_fc.train = False
         self.test_dataset_fc.dataset_name = self.dataset_name
 
-        if self.args.increment_phase :
+        if self.args.increment_phase > 0 :
             train_set_old = os.path.join(self.args.train_set_old, 'images', 'best')
             if not os.path.exists(train_set_old):
                 print(train_set_old+'is not exists!!!')

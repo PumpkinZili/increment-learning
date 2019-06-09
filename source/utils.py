@@ -393,7 +393,7 @@ class AverageMeter(object):
 
 def makedir(args):
     current_time = datetime.datetime.now().strftime('%b%d_%H-%M-%S')
-    if args.increment_phase:
+    if args.increment_phase > 0:
         current_time = str(args.increment_phase) + '_' + current_time
     if not os.path.exists(args.check_path):
         mkdir(args.check_path)

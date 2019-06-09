@@ -31,7 +31,7 @@ class Trainer():
         self.increment_phase      = args.increment_phase
         self.means                = None
         self.preserved_embedding  = None
-        if self.increment_phase :
+        if self.increment_phase > 0 :
             self.means = preserved['fts_means']
             self.preserved_embedding = preserved['preserved_embedding']
             self.preserved_embedding = self.embedding_transform(self.preserved_embedding)
@@ -51,9 +51,10 @@ class Trainer():
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            if self.increment_phase:
+            if self.increment_phase > 0:
                 old_loss, new_loss, ebd_loss = self.train_increment(epoch=epoch, model=self.model,criterion=self.criterion,
-                                                          embedding_loss=self.embedding_loss,optimizer=self.optimizer, new_loader=self.sampler_train_loader,
+                                                          embedding_loss=self.embedding_loss,optimizer=self.optimizer,
+                                                                    new_loader=self.sampler_train_loader,
                                                           old_loader=self.sampler_train_loader_old, train_loader=self.train_loader_old)
 
                 if epoch % 2 == 0 :
@@ -74,18 +75,19 @@ class Trainer():
 
                     #############################################
                     # New Train accuracy
-                    new_train_accy, new_train_fts, new_train_lbls = self.validate(args=self.args, model=self.model, loader=self.train_loader,
-                                                                                  clf_knn=clf_knn, clf_ncm=clf_ncm)
+                    new_train_accy, new_train_fts, new_train_lbls = self.validate(args=self.args, model=self.model, clf_knn=clf_knn,
+                                                                                  loader=self.train_loader, clf_ncm=clf_ncm)
 
                     # Old train acc
-                    old_train_accy, old_train_fts, old_train_lbls = self.validate(args=self.args, model=self.model,clf_knn=clf_knn,
+                    old_train_accy, old_train_fts, old_train_lbls = self.validate(args=self.args, model=self.model, clf_knn=clf_knn,
                                                                                   loader=self.train_loader_old, clf_ncm=clf_ncm)
 
                     # Test accuracy
                     valid_accy, pred_fts, pred_lbls = self.validate(args=self.args, model=self.model, loader=self.test_loader,
                                                                     clf_knn=clf_knn, clf_ncm=clf_ncm)
 
-                    self.log(epoch, new_loss, new_train_accy, valid_accy, validate_start, fts_means, pred_lbls, best_acc, old_loss, ebd_loss, old_train_accy)
+                    self.log(epoch, new_loss, new_train_accy, valid_accy, validate_start, fts_means,
+                             pred_lbls, best_acc, old_loss, ebd_loss, old_train_accy)
 
                     if (valid_accy[1] > best_acc) or epoch == self.args.epoch :
                         best_acc = max(best_acc, valid_accy[1])
@@ -93,7 +95,7 @@ class Trainer():
                     # preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
                     # self.save_model(epoch, fts_means, preserved_embedding)
 
-            else:
+            elif self.increment_phase == 0:
                 train_loss = self.train_init(pairwise=self.args.pairwise,epoch=epoch, model=self.model,criterion=self.criterion,
                               optimizer=self.optimizer,loader=self.sampler_train_loader)
 
@@ -118,7 +120,8 @@ class Trainer():
                                                                     clf_knn=clf_knn, clf_ncm=clf_ncm)
 
 
-                    self.log(epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls, best_acc=best_acc)
+                    self.log(epoch, train_loss, train_accy, valid_accy, validate_start, fts_means,
+                             pred_lbls, best_acc=best_acc)
 
                     if (train_accy[1] >= 0.96 and valid_accy[1] > best_acc) or epoch == self.args.epoch :
                         best_acc = max(best_acc, valid_accy[1])
@@ -126,6 +129,12 @@ class Trainer():
                         preserved_embedding = self.preserve_image(epoch, embeddings, targets, fts_means, self.classes)
                         self.save_model(epoch, fts_means, preserved_embedding)
 
+
+            elif self.increment_phase == -1:
+                losses = AverageMeter()
+                self.train_non_triplet(train_loader=self.train_loader, model=self.model, criterion=self.criterion, losses=losses,
+                                        optimizer=self.optimizer, epoch=epoch)
+                # TODO
 
             end_time = datetime.datetime.now()
             self.f.write('Best accy: {:.4f}, Best_epoch: {}, Time comsumed: {}mins'.format(best_acc, best_epoch, int(((end_time - start_time).seconds) / 60)))
@@ -147,6 +156,8 @@ class Trainer():
 
         for i in range(10):
             # self.train_epoch(old_loader, model, criterion, old_losses, optimizer, epoch, interval=6)
+            ebd_losses.reset()
+            # self.train_non_triplet(train_loader, model, embedding_loss, ebd_losses, optimizer, epoch)
 
             for step, (images, labels) in enumerate(train_loader):
                 if torch.cuda.is_available():
@@ -155,14 +166,16 @@ class Trainer():
                 embeddings = model(images)
 
                 l2_loss, l1_loss = embedding_loss(embeddings, self.preserved_embedding, rm_zero=False)
-                loss = l1_loss
+                loss = l2_loss * 10 + l1_loss
                 ebd_losses.update(loss.item())
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                info = 'Epoch: {} Step: {}/{}| Embedding_loss: {:.3f}'.format(epoch, step + 1, len(train_loader), ebd_losses.avg)
+                info = 'Epoch: {} Step: {}/{}| Loss: {:.3f}'.format(epoch, step + 1, len(train_loader),
+                                                                    ebd_losses.avg)
                 self.f.write(info + '\r\n')
                 print(info)
+
 
         self.train_epoch(new_loader, model, criterion, new_losses, optimizer, epoch, interval=6)
 
@@ -198,7 +211,29 @@ class Trainer():
                 self.f.write(info + '\r\n')
                 print(info)
 
+    def train_non_triplet(self, train_loader, model, criterion, losses, optimizer, epoch):
+        model.train()
+        for step, (images, labels) in enumerate(train_loader):
+            if torch.cuda.is_available():
+                images, labels = images.cuda(), labels.cuda()
 
+            embeddings = model(images)
+
+            if self.increment_phase > 0:
+                l2_loss, l1_loss = criterion(embeddings, self.preserved_embedding, rm_zero=False)
+                loss = l2_loss
+            elif self.increment_phase == -1:
+                loss = criterion(embeddings, labels)
+            else:
+                raise NotImplementedError
+            losses.update(loss.item())
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            info = 'Epoch: {} Step: {}/{}| Loss: {:.3f}'.format(epoch, step + 1, len(train_loader),
+                                                                losses.avg)
+            self.f.write(info + '\r\n')
+            print(info)
 
     def validate(self, args, model, loader, clf_knn, clf_ncm):
         '''
@@ -393,7 +428,7 @@ class Trainer():
 
     def log(self, epoch, train_loss, train_accy, valid_accy, validate_start, fts_means, pred_lbls, best_acc, old_loss=None, ebd_loss=None, old_train_accy=None):
         printConfig(self.args, self.f, self.optimizer)
-        if self.increment_phase:
+        if self.increment_phase > 0:
             info = 'Epoch: {}, New_Train_loss: {:.4f}, Old_Train_loss: {:.4f}, ebd_loss: {:.4f}, New_Train_accy(KNN, NCM): ' \
                    '{:.4f}, {:.4f}, Old_Train_accy(KNN, NCM): {:.4f}, {:.4f},' \
                    'Valid_accy(KNN, NCM): {:.4f}, {:.4f}, Consumed: {}s\n'.format(
@@ -413,7 +448,7 @@ class Trainer():
         self.writer.add_scalar(tag='Train accy(NCM)', scalar_value=train_accy[1], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(KNN)', scalar_value=valid_accy[0], global_step=epoch)
         self.writer.add_scalar(tag='Valid accy(NCM)', scalar_value=valid_accy[1], global_step=epoch)
-        if self.increment_phase:
+        if self.increment_phase > 0:
             self.writer.add_scalar(tag='Old Train loss', scalar_value=old_loss, global_step=epoch)
             self.writer.add_scalar(tag='Old Train accy(KNN)', scalar_value=old_train_accy[0], global_step=epoch)
             self.writer.add_scalar(tag='Old Train accy(NCM)', scalar_value=old_train_accy[1], global_step=epoch)
@@ -447,7 +482,7 @@ class Trainer():
             all_lbls = torch.cat((all_train_lbls, all_test_lbls))
             self.writer.add_embedding(global_step=epoch + 2000, mat=all_fts, metadata=all_lbls)
 
-            if self.increment_phase:
+            if self.increment_phase > 0:
                 # Old train set ###########################################################################
                 with torch.no_grad():
                     benchmark = self.getEmbeddings(model=self.model, loader=self.train_loader_old)

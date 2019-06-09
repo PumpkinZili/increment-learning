@@ -1,10 +1,12 @@
 import argparse
 import os
+import numpy as np
 from dataset import SpecificDataset, SampledDataset, BatchSampler, IncrementBatchSampler
 from utils import TripletLoss, TripletLossV2, Embedding_loss
 import torch
+import torch.nn as nn
 from torch.optim import lr_scheduler
-from model import EmbeddingNet
+from model import EmbeddingNet, ClassificationNet
 def arg():
     parser = argparse.ArgumentParser(description='Classifier using triplet loss.')
     parser.add_argument('--CVDs', type=str, default='7', metavar='CUDA_VISIBLE_DEVICES',
@@ -68,7 +70,8 @@ def arg():
     parser.add_argument('--pretrained', type=bool, default=True, metavar='R',
                         help='whether model is pretrained.')
     parser.add_argument('--increment_phase', type=int, default=0, metavar='R',
-                        help='which step in increment phase, 0 means the first step')
+                        help='which step in increment phase, 0 means the first step,'
+                             '-1 means use cross entropy loss')
     parser.add_argument('--increment', type=int, default=0, metavar='R',
                         help='equal to increment phase above, in case of miss, will be deleted soon.')
     parser.add_argument('--data_augmentation', type=bool, default=False, metavar='R',
@@ -172,9 +175,12 @@ def get_args():
 
 
 def get_model(args):
-    model, preserved = None, None
+    preserved = None
+    model = EmbeddingNet(network=args.model_name, pretrained=args.pretrained, embedding_len=args.embedding_size)
     if args.increment_phase == 0:
-        model = EmbeddingNet(network = args.model_name, pretrained=args.pretrained, embedding_len=args.embedding_size)
+        pass
+    elif args.increment_phase == -1:
+        model = ClassificationNet(model)
     elif args.increment_phase == 1:
         try:
             pkl = torch.load(args.train_set_old+'/pkl/state_best.pth')
@@ -198,7 +204,11 @@ def get_osc(args, model):
     # criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
     criterion = TripletLossV2(margin=args.margin)
     embedding_loss = Embedding_loss()
-
+    if args.increment_phase == -1:
+        class_weight = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 10.0]
+        class_weight = np.array(class_weight)
+        class_weight = torch.Tensor(class_weight).cuda()
+        criterion = nn.CrossEntropyLoss(weight=class_weight)
     return optimizer, scheduler, criterion, embedding_loss
 
 

@@ -24,10 +24,12 @@ def main():
 
     model, preserved = get_model(args)
     model = model.cuda()
-    for p in model.children():
-        for c in p.parameters():
-             c.requires_grad = False
-        break
+    if args.increment_phase>0:
+        ## frezee conv layer parameter
+        for p in model.children():
+            for c in p.parameters():
+                 c.requires_grad = False
+            break
 
 
     optimizer, scheduler, criterion, embedding_loss_function = get_osc(args, model)

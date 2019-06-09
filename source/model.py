@@ -115,7 +115,7 @@ class EmbeddingNet(nn.Module):
 
 
 class ClassificationNet(nn.Module):
-    def __init__(self, embedding_net, n_classes, embedding_len=128):
+    def __init__(self, embedding_net, n_classes=10, embedding_len=128):
         super(ClassificationNet, self).__init__()
         self.embedding_net = embedding_net
         self.n_classes = n_classes
