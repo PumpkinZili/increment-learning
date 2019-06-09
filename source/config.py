@@ -193,7 +193,8 @@ def get_model(args):
 
 
 def get_osc(args, model):
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-5)
+    optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
+                                lr=args.lr, momentum=0.9, weight_decay=1e-5)
     scheduler = lr_scheduler.StepLR(optimizer, args.step_size, gamma=0.5, last_epoch=-1)
     # criterion = TripletLoss(margin=args.margin, method=args.method).cuda()
     criterion = TripletLossV2(margin=args.margin)

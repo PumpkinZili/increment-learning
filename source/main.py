@@ -9,7 +9,6 @@ import sys
 import random
 import os
 
-
 def main():
     args = get_args()
     random.seed(args.seed)
@@ -19,10 +18,17 @@ def main():
 
     current_time, f, save_path, writer = makedir(args)
     args.train_set_old = '/data0/zili/code/checkpoints/Jun05_18-25-14'
+    if args.server == 15:
+        args.train_set_old = '/data0/share/zili/checkpoints/Jun09_17-21-53'
 
 
     model, preserved = get_model(args)
     model = model.cuda()
+
+    for p in model.children():
+        for c in p.parameters():
+             c.requires_grad = False
+        break
 
     optimizer, scheduler, criterion, embedding_loss = get_osc(args, model)
     criterion = criterion.cuda()
