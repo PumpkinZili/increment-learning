@@ -31,7 +31,7 @@ def arg():
                         help='input batch size for training (default: 32)')
     parser.add_argument('--test-batch-size', type=int, default=192, metavar='number',
                         help='input batch size for testing (default: 64)')
-    parser.add_argument('--epoch', type=int, default=300, metavar='number',
+    parser.add_argument('--epoch', type=int, default=150, metavar='number',
                         help='number of epochs to train (default: 100)')
     parser.add_argument('--embedding-size', type=int, default=128, metavar='number',
                         help='embedding size of model (default: 256)')
@@ -79,6 +79,7 @@ def arg():
     args = parser.parse_args()
     return args
 
+
 def adjustedArgs(args):
     if args.server == 31:
         if args.dataset == 'cifar100_10':
@@ -101,7 +102,6 @@ def adjustedArgs(args):
             raise NotImplementedError
         args.check_path = '/share/zili/code/checkpoints'
 
-
     elif args.server == 16:
         if args.dataset == 'cifar100_10':
             args.train_set = '/data0/zili/code/data/cifar100/train'
@@ -123,7 +123,6 @@ def adjustedArgs(args):
             raise NotImplementedError
         args.check_path = '/data0/zili/code/checkpoints'
 
-
     elif args.server == 17:
         if args.dataset == 'cifar100_10':
             args.train_set = '/data/jiaxin/zili/data/cifar100/train2'
@@ -138,7 +137,6 @@ def adjustedArgs(args):
             print(args.dataset)
             raise NotImplementedError
         args.check_path = '/data/jiaxin/zili/checkpoints'
-
 
     elif args.server == 15:
         if args.dataset == 'cifar100_10':
@@ -223,15 +221,16 @@ def get_dataloader(args):
     print('Validation data has {}'.format(len(test_dataset)))
 
     kwargs = {'num_workers': 8, 'pin_memory': False}
+    sampler_train_loader = None
+    train_loader_old = None
+    sampler_train_loader_old = None
 
     if args.increment_phase == 0:
         batch_sampler = BatchSampler(train_dataset, n_classes=args.batch_n_classes, n_num=args.batch_n_num)
         # batch_sampler = LimitedBatchSampler(train_dataset, 10, args.batch_n_num, args.batch_n_classes)
         sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=batch_sampler, **kwargs)
-        train_loader_old = None
-        sampler_train_loader_old = None
 
-    else:
+    elif args.increment_phase > 0:
         incrementBatchSampler = IncrementBatchSampler(train_dataset, n_num=args.batch_n_num)
         sampler_train_loader = torch.utils.data.DataLoader(train_dataset, batch_sampler=incrementBatchSampler, **kwargs)
 
@@ -242,7 +241,6 @@ def get_dataloader(args):
         sampler_train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_sampler=batch_sampler, **kwargs)
 
         train_loader_old = torch.utils.data.DataLoader(train_dataset_old, batch_size=200, shuffle=False, **kwargs)
-
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, **kwargs)

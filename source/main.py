@@ -12,6 +12,7 @@ import os
 def main():
     args = get_args()
     random.seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.CVDs
     cudnn.benchmark = True
 
